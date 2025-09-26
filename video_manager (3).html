@@ -1,0 +1,1122 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video File Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+    <style>
+        body { 
+            background: #f1f5f9; 
+            font-family: 'Inter', sans-serif; 
+        }
+        .tooltip { position: relative; }
+        .tooltip:hover::after {
+            content: attr(data-tooltip);
+            @apply absolute z-10 bg-gray-800 text-white text-xs rounded p-2 -mt-8;
+        }
+        .progress-bar { display: none; width: 100%; height: 3px; background: #e5e7eb; }
+        .progress-bar.active { display: block; }
+        .progress-bar div { height: 100%; background: #2dd4bf; transition: width 0.3s; }
+        video { max-width: 100%; height: auto; }
+        .tab-button.active { 
+            @apply bg-teal-500 text-white border-b-2 border-teal-600 font-semibold; 
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        table { @apply w-full text-sm table-auto; }
+        th { @apply sticky top-0 bg-teal-50 font-semibold p-3; }
+        td { @apply p-3 border; }
+        select, input[type="date"], input[type="number"], textarea, input[type="text"] { 
+            @apply p-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-teal-300; 
+        }
+        textarea { resize: vertical; min-height: 80px; }
+        .container { @apply max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8; }
+        section { @apply mb-6; }
+        header, footer { @apply py-3; }
+        .file-path-column { @apply w-2/5; }
+        .disk-id-column { @apply w-1/5; }
+        .metadata-column { @apply w-2/5; }
+        .actions-column { @apply w-1/5; }
+        @media (max-width: 640px) {
+            .file-path-column, .metadata-column { @apply w-full; }
+            .disk-id-column, .actions-column { @apply w-1/4; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div id="passwordPrompt" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-md max-w-md w-full">
+            <h2 class="text-xl font-semibold mb-4 text-gray-800">Welcome!</h2>
+            <p class="text-gray-600 mb-4">Enter password to access Video File Manager.</p>
+            <input type="password" id="passwordInput" class="p-2 border rounded-lg w-full mb-4 focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="Password">
+            <button onclick="checkPassword()" class="bg-teal-500 text-white p-2 rounded-lg w-full hover:bg-teal-600 transition">Log In</button>
+        </div>
+    </div>
+
+    <div id="mainApp" class="container min-h-screen hidden">
+        <header class="bg-teal-100 rounded-lg shadow-md mb-6">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center">Video File Manager</h1>
+            <p class="text-center text-gray-600 text-sm mt-1">Organize, tag, and preview your video files with cloud sync!</p>
+        </header>
+
+        <nav class="flex flex-wrap border-b-2 border-gray-200 mb-6">
+            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition active" onclick="showTab('programmesTab')">Programmes</button>
+            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('disksTab')">Disks</button>
+            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('scanTab')">Scan HDD</button>
+            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('scannedTab')">Scanned Files</button>
+            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('metadataTab')">Metadata</button>
+            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('searchTab')">Search</button>
+            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('exportTab')">Export</button>
+        </nav>
+
+        <main class="space-y-6">
+            <!-- Manage Programme Names -->
+            <section id="programmesTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md active">
+                <h2 class="text-xl font-semibold text-gray-800 mb-3">Manage Programme Names</h2>
+                <p class="text-gray-600 text-sm mb-3">Add, edit, or remove programme names for tagging.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                    <input type="text" id="newProgramme" placeholder="Enter programme name" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
+                    <button onclick="addProgramme()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Add a new programme">Add Programme</button>
+                </div>
+                <div id="programmeList" class="grid grid-cols-1 gap-3"></div>
+                <p id="noProgrammesMessage" class="text-gray-600 text-sm mt-3 hidden">No programmes available. Add a programme above to start tagging files.</p>
+            </section>
+
+            <!-- Disks List -->
+            <section id="disksTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-800 mb-3">Scanned Disks</h2>
+                <p class="text-gray-600 text-sm mb-3">View all scanned Disk IDs and rescan for new programmes.</p>
+                <div id="diskList" class="grid grid-cols-1 gap-3"></div>
+            </section>
+
+            <!-- Select HDD and Scan -->
+            <section id="scanTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-800 mb-3">Select HDD and Scan</h2>
+                <p class="text-gray-600 text-sm mb-3">Choose a folder (including subfolders) and assign a Disk ID.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <input type="text" id="diskId" placeholder="Disk ID (e.g., 2-HD1TB)" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
+                    <input type="file" id="diskFolder" webkitdirectory directory multiple class="p-2 border rounded-lg">
+                    <button onclick="scanDisk()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Scan for video files in folder and subfolders">Scan Videos</button>
+                </div>
+                <div class="progress-bar mt-4" id="scanProgress">
+                    <div id="progressFill" class="w-0"></div>
+                </div>
+            </section>
+
+            <!-- Scanned Files -->
+            <section id="scannedTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-800 mb-3">Scanned Video Files</h2>
+                <p class="text-gray-600 text-sm mb-3">View new video files (without metadata) from selected folder and subfolders, sorted alphabetically.</p>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse mb-3">
+                        <thead>
+                            <tr class="bg-teal-50">
+                                <th class="file-path-column p-3 border text-left">File Path</th>
+                                <th class="actions-column p-3 border text-left">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scannedTable"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Metadata Editor -->
+            <section id="metadataTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-800 mb-3">Manage Metadata</h2>
+                <p class="text-gray-600 text-sm mb-3">Add or edit metadata while previewing the video. Episode Details are auto-corrected to sentence case on save.</p>
+                <input type="text" id="metadataFilePath" placeholder="Selected file path" class="p-2 border rounded-lg mb-4 w-full" readonly>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div id="metadataFields" class="grid grid-cols-1 gap-4">
+                        <div class="flex flex-col sm:flex-row gap-3 items-start">
+                            <label class="w-full sm:w-1/3 text-gray-700 text-sm pt-2">Name of Programme</label>
+                            <div class="flex-1">
+                                <select id="programName" onchange="toggleOtherProgrammeInput(this)" class="p-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-teal-300">
+                                    <option value="">Select a programme</option>
+                                </select>
+                                <input type="text" id="otherProgramme" placeholder="Enter new programme" class="p-2 border rounded-lg w-full mt-2 hidden focus:outline-none focus:ring-2 focus:ring-teal-300">
+                            </div>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-3 items-start">
+                            <label class="w-full sm:w-1/3 text-gray-700 text-sm pt-2">Episode Number</label>
+                            <input type="number" id="episodeNumber" placeholder="e.g., 1" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300">
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-3 items-start">
+                            <label class="w-full sm:w-1/3 text-gray-700 text-sm pt-2">Episode Details</label>
+                            <div class="flex-1">
+                                <textarea id="episodeDetails" placeholder="e.g., Episode 1, 30min, Drama, Directed by John Doe" rows="4" class="p-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-teal-300"></textarea>
+                                <button onclick="checkGrammar()" class="bg-yellow-500 text-white p-2 rounded-lg mt-2 hover:bg-yellow-600 transition tooltip" data-tooltip="Check grammar for Episode Details">Check Grammar</button>
+                                <div id="grammarSuggestions" class="text-sm text-gray-600 mt-2 hidden"></div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-3 items-start">
+                            <label class="w-full sm:w-1/3 text-gray-700 text-sm pt-2">Telecast Date</label>
+                            <input type="date" id="telecastDate" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300">
+                        </div>
+                        <div id="customFields" class="grid grid-cols-1 gap-3">
+                            <div class="flex flex-col sm:flex-row gap-3">
+                                <input type="text" placeholder="Custom Field Name" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-key>
+                                <input type="text" placeholder="Value" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-value>
+                                <button onclick="removeCustomField(this)" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Remove this field">Remove</button>
+                            </div>
+                        </div>
+                        <div class="flex gap-4 mt-3">
+                            <button onclick="addCustomField()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Add custom metadata field">Add Custom Field</button>
+                            <button onclick="saveMetadata()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Save metadata">Save Metadata</button>
+                        </div>
+                    </div>
+                    <div id="videoPlayerContainer" class="hidden">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Video Preview</h3>
+                        <video id="videoPlayer" controls class="border rounded-lg shadow-sm w-full" width="100%"></video>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Search Files -->
+            <section id="searchTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-800 mb-3">Search Files</h2>
+                <p class="text-gray-600 text-sm mb-3">Find archived files by Disk ID, programme name, episode number, telecast date, or other metadata (e.g., details). Use AND (all criteria must match) or OR (any criterion matches). Results are sorted by programme and episode number.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-4">
+                    <input type="text" id="searchDiskId" placeholder="Search Disk ID (e.g., 2-HD1TB)" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
+                    <select id="searchProgramName" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
+                        <option value="">All Programmes</option>
+                    </select>
+                    <input type="number" id="searchEpisodeNumber" placeholder="Episode Number (e.g., 1)" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
+                    <input type="date" id="searchTelecastDate" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
+                    <input type="text" id="searchMetadata" placeholder="Search Metadata (e.g., Drama, Sci-Fi)" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
+                    <select id="searchLogic" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
+                        <option value="AND">AND (All criteria)</option>
+                        <option value="OR">OR (Any criterion)</option>
+                    </select>
+                </div>
+                <button onclick="searchFiles()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Search for files">Search Files</button>
+                <input type="file" id="copyDestination" webkitdirectory directory class="hidden">
+            </section>
+
+            <!-- Export and Backup -->
+            <section id="exportTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-800 mb-3">Export and Backup</h2>
+                <p class="text-gray-600 text-sm mb-3">Export metadata as CSV, backup data as JSON, or restore from JSON.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <button onclick="exportReport()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Export metadata to CSV">Export as CSV</button>
+                    <button onclick="backupData()" class="bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 transition tooltip" data-tooltip="Backup all data to JSON">Backup Data</button>
+                    <input type="file" id="restoreInput" accept=".json" class="p-2 border rounded-lg">
+                    <button onclick="restoreData()" class="bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 transition tooltip" data-tooltip="Restore data from JSON file">Restore Data</button>
+                </div>
+            </section>
+
+            <!-- Archived Files -->
+            <section id="results" class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold text-gray-800 mb-3">Archived Files</h2>
+                <p class="text-gray-600 text-sm mb-3">View all files with metadata, sorted by programme and episode number. Use Disk ID to locate HDD. Green rows indicate accessible files; red rows indicate missing files (reselect folder).</p>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="bg-teal-50">
+                                <th class="file-path-column p-3 border text-left">File Path</th>
+                                <th class="disk-id-column p-3 border text-left">Disk ID</th>
+                                <th class="metadata-column p-3 border text-left">Metadata</th>
+                                <th class="actions-column p-3 border text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTable"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="bg-teal-100 rounded-lg shadow-md mt-6 text-center text-gray-600 text-sm">
+            <p>Video File Manager v2.4 | Built for secure video organization with cloud sync | September 26, 2025</p>
+        </footer>
+    </div>
+
+    <script>
+        // Firebase Initialization
+        const firebaseConfig = {
+            apiKey: "AIzaSyBd2ymMz7Az97T71xsnP3P2XFjTrxEzruc",
+            authDomain: "video-manager-sync.firebaseapp.com",
+            projectId: "video-manager-sync",
+            storageBucket: "video-manager-sync.firebasestorage.app",
+            messagingSenderId: "772995186320",
+            appId: "1:772995186320:web:42842957d19e780ebea215",
+            measurementId: "G-KZ3C92XLJH"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const firestore = firebase.firestore();
+        const auth = firebase.auth();
+
+        const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.wmv'];
+        const EXCLUDE_PREFIXES = ['.', '$', '~'];
+        const EXCLUDE_DIRS = ['/Windows', '/System32', '/dev', '/proc', '/sys', '/boot', '/etc'];
+        let currentFiles = [];
+
+        // Authenticate anonymously
+        auth.signInAnonymously().catch(error => {
+            console.error('Authentication error:', error);
+            alert('Failed to authenticate. Please try again.');
+        });
+
+        // Prompt for backup on window close
+        window.addEventListener('beforeunload', function(event) {
+            event.preventDefault();
+            event.returnValue = 'Would you like to back up your data before closing? Go to the Export tab and click "Backup Data" to save as JSON.';
+        });
+
+        // Tab navigation
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`button[onclick="showTab('${tabId}')"]`).classList.add('active');
+        }
+
+        // Convert text to sentence case
+        function toSentenceCase(text) {
+            if (!text) return text;
+            return text
+                .split(/([.!?]\s+)/)
+                .map(segment => {
+                    if (/[.!?]\s+$/.test(segment)) return segment;
+                    return segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase();
+                })
+                .join('')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        // Basic grammar checker
+        function checkGrammar() {
+            const episodeDetails = document.getElementById('episodeDetails').value.trim();
+            const suggestionsDiv = document.getElementById('grammarSuggestions');
+            suggestionsDiv.classList.add('hidden');
+            suggestionsDiv.innerHTML = '';
+
+            if (!episodeDetails) {
+                suggestionsDiv.innerHTML = 'No text to check.';
+                suggestionsDiv.classList.remove('hidden');
+                return;
+            }
+
+            const suggestions = [];
+            const words = episodeDetails.toLowerCase().split(/\s+/);
+            const commonErrors = {
+                'direct': 'directed',
+                'directs': 'directed',
+                'was': 'were (if plural subject)',
+                'is': 'are (if plural subject)',
+                'dont': "don't",
+                'ep': 'episode',
+                'min': 'minutes'
+            };
+
+            words.forEach((word, index) => {
+                if (commonErrors[word]) {
+                    suggestions.push(`Replace "${word}" with "${commonErrors[word]}" at position ${index + 1}.`);
+                }
+                if (index === 0 && word.match(/^[a-z]/)) {
+                    suggestions.push(`Capitalize the first word "${word}" to "${word.charAt(0).toUpperCase() + word.slice(1)}".`);
+                }
+                if (word === 'a' && index < words.length - 1 && words[index + 1].match(/^[aeiou]/i)) {
+                    suggestions.push(`Replace "a" with "an" before "${words[index + 1]}" at position ${index + 1}.`);
+                }
+            });
+
+            if (!episodeDetails.match(/[.!?]$/)) {
+                suggestions.push('Add a period, exclamation mark, or question mark at the end of the text.');
+            }
+
+            if (suggestions.length === 0) {
+                suggestionsDiv.innerHTML = 'No grammar issues found.';
+            } else {
+                suggestionsDiv.innerHTML = '<p class="font-semibold">Grammar Suggestions:</p><ul class="list-disc pl-5">' + 
+                    suggestions.map(s => `<li>${s}</li>`).join('') + '</ul>';
+            }
+            suggestionsDiv.classList.remove('hidden');
+        }
+
+        // Load programme names
+        function loadProgrammes() {
+            firestore.collection('programmes').get().then(snapshot => {
+                const programmes = snapshot.docs.map(doc => doc.data());
+                const metadataSelect = document.getElementById('programName');
+                const searchSelect = document.getElementById('searchProgramName');
+                const noProgrammesMessage = document.getElementById('noProgrammesMessage');
+                metadataSelect.innerHTML = `<option value="">Select a programme</option>`;
+                searchSelect.innerHTML = `<option value="">All Programmes</option>`;
+                programmes.forEach(p => {
+                    metadataSelect.innerHTML += `<option value="${p.name}">${p.name}</option>`;
+                    searchSelect.innerHTML += `<option value="${p.name}">${p.name}</option>`;
+                });
+                metadataSelect.innerHTML += `<option value="Other">Other</option>`;
+                noProgrammesMessage.classList.toggle('hidden', programmes.length > 0);
+
+                const list = document.getElementById('programmeList');
+                list.innerHTML = '';
+                programmes.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'flex gap-3 items-center';
+                    div.innerHTML = `
+                        <input type="text" value="${p.name}" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" readonly>
+                        <button onclick="editProgramme('${p.id}', this)" class="bg-yellow-500 text-white p-2 rounded-lg hover:bg-yellow-600 transition tooltip" data-tooltip="Edit programme">Edit</button>
+                        <button onclick="deleteProgramme('${p.id}')" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Delete programme">Delete</button>
+                    `;
+                    list.appendChild(div);
+                });
+            }).catch(error => {
+                console.error('Failed to load programmes:', error);
+                alert('Error loading programmes. Please try again.');
+            });
+
+            // Real-time listener for programmes
+            firestore.collection('programmes').onSnapshot(() => {
+                loadProgrammes();
+            });
+        }
+
+        // Load disk IDs
+        function loadDisks() {
+            firestore.collection('files').get().then(snapshot => {
+                const files = snapshot.docs.map(doc => doc.data());
+                const diskIds = [...new Set(files.map(file => file.diskId))];
+                const diskList = document.getElementById('diskList');
+                diskList.innerHTML = '';
+                diskIds.forEach(diskId => {
+                    const div = document.createElement('div');
+                    div.className = 'flex gap-3 items-center';
+                    div.innerHTML = `
+                        <input type="text" value="${diskId}" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" readonly>
+                        <input type="file" id="rescanFolder_${diskId.replace(/[^a-zA-Z0-9]/g, '_')}" webkitdirectory directory multiple class="p-2 border rounded-lg">
+                        <button onclick="rescanDisk('${diskId.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Rescan this disk for new files">Rescan</button>
+                    `;
+                    diskList.appendChild(div);
+                });
+            }).catch(error => {
+                console.error('Failed to load disks:', error);
+                alert('Error loading disks. Please try again.');
+            });
+        }
+
+        // Add programme
+        function addProgramme() {
+            const name = document.getElementById('newProgramme').value.trim();
+            if (!name) {
+                alert('Please enter a programme name.');
+                return;
+            }
+
+            firestore.collection('programmes').where('name', '==', name.toLowerCase()).get().then(snapshot => {
+                if (!snapshot.empty) {
+                    alert(`Programme "${name}" already exists.`);
+                    return;
+                }
+                const id = firestore.collection('programmes').doc().id;
+                firestore.collection('programmes').doc(id).set({ id, name }).then(() => {
+                    document.getElementById('newProgramme').value = '';
+                    alert(`Programme "${name}" added!`);
+                }).catch(error => {
+                    console.error('Failed to add programme:', error);
+                    alert('Error adding programme. Please try again.');
+                });
+            });
+        }
+
+        // Edit programme
+        function editProgramme(id, button) {
+            const input = button.previousElementSibling;
+            if (button.textContent === 'Edit') {
+                input.removeAttribute('readonly');
+                button.textContent = 'Save';
+                button.className = 'bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip';
+                button.setAttribute('data-tooltip', 'Save programme name');
+            } else {
+                const newName = input.value.trim();
+                if (!newName) {
+                    alert('Please enter a programme name.');
+                    return;
+                }
+                firestore.collection('programmes').where('name', '==', newName.toLowerCase()).get().then(snapshot => {
+                    if (!snapshot.empty && snapshot.docs[0].id !== id) {
+                        alert(`Programme "${newName}" already exists.`);
+                        return;
+                    }
+                    firestore.collection('programmes').doc(id).update({ name: newName }).then(() => {
+                        input.setAttribute('readonly', true);
+                        button.textContent = 'Edit';
+                        button.className = 'bg-yellow-500 text-white p-2 rounded-lg hover:bg-yellow-600 transition tooltip';
+                        button.setAttribute('data-tooltip', 'Edit programme');
+                        alert(`Programme updated to "${newName}"!`);
+                    }).catch(error => {
+                        console.error('Failed to edit programme:', error);
+                        alert('Error editing programme. Please try again.');
+                    });
+                });
+            }
+        }
+
+        // Delete programme
+        function deleteProgramme(id) {
+            if (!confirm('Are you sure you want to delete this programme?')) return;
+            firestore.collection('programmes').doc(id).delete().then(() => {
+                alert('Programme deleted!');
+            }).catch(error => {
+                console.error('Failed to delete programme:', error);
+                alert('Error deleting programme. Please try again.');
+            });
+        }
+
+        // Toggle other programme input
+        function toggleOtherProgrammeInput(select) {
+            const otherInput = document.getElementById('otherProgramme');
+            otherInput.classList.toggle('hidden', select.value !== 'Other');
+            if (select.value === 'Other') {
+                otherInput.focus();
+            }
+        }
+
+        // Check if file is excluded
+        function isExcluded(filePath) {
+            const fileName = filePath.split('/').pop();
+            if (EXCLUDE_PREFIXES.some(prefix => fileName.startsWith(prefix))) return true;
+            if (!VIDEO_EXTENSIONS.some(ext => fileName.toLowerCase().endsWith(ext))) return true;
+            return EXCLUDE_DIRS.some(dir => filePath.includes(dir));
+        }
+
+        // Scan disk
+        function scanDisk(diskId = null) {
+            const inputDiskId = diskId || document.getElementById('diskId').value.trim();
+            const diskFolder = diskId ? document.getElementById(`rescanFolder_${diskId.replace(/[^a-zA-Z0-9]/g, '_')}`) : document.getElementById('diskFolder');
+            if (!inputDiskId) {
+                alert('Please enter a Disk ID.');
+                return;
+            }
+            if (!diskFolder.files.length) {
+                alert('Please select a folder.');
+                return;
+            }
+
+            const progressBar = document.getElementById('scanProgress');
+            const progressFill = document.getElementById('progressFill');
+            progressBar.classList.add('active');
+            progressFill.style.width = '0%';
+
+            const scannedTable = document.getElementById('scannedTable');
+            scannedTable.innerHTML = '';
+            currentFiles = Array.from(diskFolder.files);
+
+            const newFiles = [];
+            const existingFiles = new Set();
+            firestore.collection('files').get().then(snapshot => {
+                snapshot.docs.forEach(doc => existingFiles.add(doc.data().filePath));
+                const nonArchivedFiles = [];
+                currentFiles.forEach((file, index) => {
+                    const filePath = file.webkitRelativePath;
+                    if (!isExcluded(filePath)) {
+                        if (!existingFiles.has(filePath)) {
+                            firestore.collection('files').doc(filePath).set({ filePath, diskId: inputDiskId, metadata: {} });
+                            newFiles.push(filePath);
+                        }
+                        nonArchivedFiles.push({ filePath, file });
+                        progressFill.style.width = `${((index + 1) / currentFiles.length) * 100}%`;
+                    }
+                });
+
+                firestore.collection('files').where('metadata', '==', {}).get().then(snapshot => {
+                    const displayFiles = nonArchivedFiles
+                        .filter(f => snapshot.docs.some(doc => doc.data().filePath === f.filePath))
+                        .sort((a, b) => a.filePath.localeCompare(b.filePath, undefined, { sensitivity: 'base' }));
+
+                    displayFiles.forEach(({ filePath, file }) => {
+                        const row = document.createElement('tr');
+                        row.dataset.filePath = filePath;
+                        row.innerHTML = `
+                            <td class="file-path-column p-3 border">${filePath}</td>
+                            <td class="actions-column p-3 border">
+                                <button onclick="editMetadata('${filePath.replace(/'/g, "\\'")}')" 
+                                        class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata and play">
+                                    Edit Metadata
+                                </button>
+                            </td>
+                        `;
+                        scannedTable.appendChild(row);
+                    });
+
+                    progressBar.classList.remove('active');
+                    if (newFiles.length > 0) {
+                        alert(`New files added from folder and subfolders: ${newFiles.join(', ')}\nEdit metadata in the 'Scanned Files' section to archive them.`);
+                    } else {
+                        alert('No new files found during scan.');
+                    }
+                    alert('Scan completed!');
+                    loadFiles();
+                    loadDisks();
+                    showTab('scannedTab');
+                });
+            }).catch(error => {
+                console.error('Failed to scan disk:', error);
+                progressBar.classList.remove('active');
+                alert('Error scanning disk. Please try again.');
+            });
+        }
+
+        // Rescan disk
+        function rescanDisk(diskId) {
+            scanDisk(diskId);
+        }
+
+        // Edit metadata
+        function editMetadata(filePath) {
+            document.getElementById('metadataFilePath').value = filePath;
+            const programName = document.getElementById('programName');
+            const otherProgramme = document.getElementById('otherProgramme');
+            const episodeNumber = document.getElementById('episodeNumber');
+            const episodeDetails = document.getElementById('episodeDetails');
+            const telecastDate = document.getElementById('telecastDate');
+            const customFields = document.getElementById('customFields');
+            const videoPlayerContainer = document.getElementById('videoPlayerContainer');
+            const videoPlayer = document.getElementById('videoPlayer');
+            const grammarSuggestions = document.getElementById('grammarSuggestions');
+
+            if (videoPlayer.src) {
+                URL.revokeObjectURL(videoPlayer.src);
+                videoPlayer.src = '';
+            }
+            grammarSuggestions.classList.add('hidden');
+            grammarSuggestions.innerHTML = '';
+
+            customFields.innerHTML = `
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" placeholder="Custom Field Name" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-key>
+                    <input type="text" placeholder="Value" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-value>
+                    <button onclick="removeCustomField(this)" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Remove this field">Remove</button>
+                </div>
+            `;
+
+            const file = currentFiles.find(f => f.webkitRelativePath === filePath);
+            if (file) {
+                videoPlayer.src = URL.createObjectURL(file);
+                videoPlayerContainer.classList.remove('hidden');
+            } else {
+                videoPlayerContainer.classList.add('hidden');
+                alert('Video file not found. Please reselect the folder containing this file.');
+            }
+
+            firestore.collection('files').doc(filePath).get().then(doc => {
+                const file = doc.data();
+                if (file && Object.keys(file.metadata).length > 0) {
+                    const progName = file.metadata['Name of Programme'] || '';
+                    programName.value = progName;
+                    if (programName.options.namedItem(progName)) {
+                        otherProgramme.value = '';
+                        otherProgramme.classList.add('hidden');
+                    } else {
+                        programName.value = 'Other';
+                        otherProgramme.value = progName;
+                        otherProgramme.classList.remove('hidden');
+                    }
+                    episodeNumber.value = file.metadata['Episode Number'] || '';
+                    episodeDetails.value = file.metadata['Episode Details'] || '';
+                    telecastDate.value = file.metadata['Telecast Date'] || '';
+                    customFields.innerHTML = '';
+                    Object.entries(file.metadata).forEach(([key, value]) => {
+                        if (!['Name of Programme', 'Episode Number', 'Episode Details', 'Telecast Date'].includes(key)) {
+                            const div = document.createElement('div');
+                            div.className = 'flex flex-col sm:flex-row gap-3';
+                            div.innerHTML = `
+                                <input type="text" value="${key}" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-key>
+                                <input type="text" value="${value}" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-value>
+                                <button onclick="removeCustomField(this)" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Remove this field">Remove</button>
+                            `;
+                            customFields.appendChild(div);
+                        }
+                    });
+                } else {
+                    programName.value = '';
+                    otherProgramme.value = '';
+                    otherProgramme.classList.add('hidden');
+                    episodeNumber.value = '';
+                    episodeDetails.value = '';
+                    telecastDate.value = '';
+                }
+                showTab('metadataTab');
+                document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
+                programName.focus();
+            }).catch(error => {
+                console.error('Failed to load metadata:', error);
+                alert('Error loading metadata. Please try again.');
+            });
+        }
+
+        // Add custom field
+        function addCustomField() {
+            const customFields = document.getElementById('customFields');
+            const div = document.createElement('div');
+            div.className = 'flex flex-col sm:flex-row gap-3';
+            div.innerHTML = `
+                <input type="text" placeholder="Custom Field Name" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-key>
+                <input type="text" placeholder="Value" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-value>
+                <button onclick="removeCustomField(this)" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Remove this field">Remove</button>
+            `;
+            customFields.appendChild(div);
+        }
+
+        // Remove custom field
+        function removeCustomField(button) {
+            button.parentElement.remove();
+        }
+
+        // Save metadata
+        function saveMetadata() {
+            const filePath = document.getElementById('metadataFilePath').value.trim();
+            if (!filePath) {
+                alert('Please select a file to edit metadata.');
+                return;
+            }
+
+            firestore.collection('files').doc(filePath).get().then(doc => {
+                if (!doc.exists) {
+                    alert('File not found!');
+                    return;
+                }
+                const file = doc.data();
+                const metadata = {};
+                const programName = document.getElementById('programName').value;
+                const otherProgramme = document.getElementById('otherProgramme').value.trim();
+                const finalProgramName = programName === 'Other' ? otherProgramme : programName;
+                if (finalProgramName) {
+                    metadata['Name of Programme'] = finalProgramName;
+                    if (programName === 'Other' && otherProgramme) {
+                        firestore.collection('programmes').where('name', '==', otherProgramme.toLowerCase()).get().then(snapshot => {
+                            if (snapshot.empty) {
+                                const id = firestore.collection('programmes').doc().id;
+                                firestore.collection('programmes').doc(id).set({ id, name: otherProgramme });
+                            }
+                        }).catch(error => {
+                            console.error('Failed to add new programme:', error);
+                            alert('Error adding new programme. Please try again.');
+                        });
+                    }
+                }
+                const episodeNumber = document.getElementById('episodeNumber').value.trim();
+                if (episodeNumber) metadata['Episode Number'] = episodeNumber;
+                const episodeDetails = document.getElementById('episodeDetails').value.trim();
+                if (episodeDetails) metadata['Episode Details'] = toSentenceCase(episodeDetails);
+                const telecastDate = document.getElementById('telecastDate').value.trim();
+                if (telecastDate) metadata['Telecast Date'] = telecastDate;
+
+                document.querySelectorAll('#customFields div').forEach(div => {
+                    const key = div.querySelector('[data-key]').value.trim();
+                    const value = div.querySelector('[data-value]').value.trim();
+                    if (key && value) metadata[key] = value;
+                });
+
+                firestore.collection('files').doc(filePath).update({ metadata }).then(() => {
+                    const videoPlayer = document.getElementById('videoPlayer');
+                    if (videoPlayer.src) {
+                        URL.revokeObjectURL(videoPlayer.src);
+                        videoPlayer.src = '';
+                    }
+                    document.getElementById('grammarSuggestions').classList.add('hidden');
+                    alert(`Metadata saved for "${filePath.split('/').pop()}". Updated in 'Archived Files'.`);
+                    const scannedTable = document.getElementById('scannedTable');
+                    const rows = Array.from(scannedTable.querySelectorAll('tr'));
+                    const currentRow = rows.find(row => row.dataset.filePath === filePath);
+                    if (currentRow) currentRow.remove();
+                    if (rows.length > 1) {
+                        const nextRow = rows.find(row => row.dataset.filePath !== filePath);
+                        if (nextRow) {
+                            const nextFilePath = nextRow.dataset.filePath;
+                            editMetadata(nextFilePath);
+                        }
+                    } else {
+                        alert('All scanned files have been archived!');
+                        showTab('scannedTab');
+                    }
+                    document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
+                }).catch(error => {
+                    console.error('Failed to save metadata:', error);
+                    alert('Error saving metadata. Please try again.');
+                });
+            });
+        }
+
+        // Load and display archived files with metadata
+        function loadFiles() {
+            firestore.collection('files').get().then(snapshot => {
+                const files = snapshot.docs.map(doc => doc.data());
+                const tableBody = document.getElementById('fileTable');
+                tableBody.innerHTML = '';
+
+                const filesWithMetadata = files
+                    .filter(file => Object.keys(file.metadata).length > 0)
+                    .sort((a, b) => {
+                        const progA = a.metadata['Name of Programme'] || '';
+                        const progB = b.metadata['Name of Programme'] || '';
+                        if (progA !== progB) {
+                            return progA.localeCompare(progB, undefined, { sensitivity: 'base' });
+                        }
+                        const epA = parseInt(a.metadata['Episode Number'] || '0', 10);
+                        const epB = parseInt(b.metadata['Episode Number'] || '0', 10);
+                        return epA - epB;
+                    });
+
+                filesWithMetadata.forEach(file => {
+                    const metadataStr = Object.entries(file.metadata)
+                        .map(([k, v]) => `${k}: ${v}`)
+                        .join('; ');
+                    const isAccessible = currentFiles.some(f => f.webkitRelativePath === file.filePath);
+                    const row = document.createElement('tr');
+                    row.className = isAccessible ? 'bg-green-100' : 'bg-red-100';
+                    row.setAttribute('data-tooltip', isAccessible ? 'File accessible' : 'File not found, reselect folder');
+                    row.classList.add('tooltip');
+                    row.innerHTML = `
+                        <td class="file-path-column p-3 border">${file.filePath}</td>
+                        <td class="disk-id-column p-3 border">${file.diskId}</td>
+                        <td class="metadata-column p-3 border">${metadataStr}</td>
+                        <td class="actions-column p-3 border">
+                            <button onclick="editMetadata('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata">Edit</button>
+                            <button onclick="playVideoInSearch('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Play video">Play</button>
+                            <button onclick="copyFile('${file.filePath.replace(/'/g, "\\'")}')" class="bg-gray-500 text-white p-1 rounded-lg hover:bg-gray-600 transition tooltip" data-tooltip="Copy file to destination">Copy</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            }).catch(error => {
+                console.error('Failed to load files:', error);
+                alert('Error loading files. Please try again.');
+            });
+
+            // Real-time listener for files
+            firestore.collection('files').onSnapshot(() => {
+                loadFiles();
+            });
+        }
+
+        // Play video in search
+        function playVideoInSearch(filePath) {
+            const file = currentFiles.find(f => f.webkitRelativePath === filePath);
+            const videoPlayer = document.getElementById('videoPlayer');
+            if (videoPlayer.src) {
+                URL.revokeObjectURL(videoPlayer.src);
+                videoPlayer.src = '';
+            }
+            if (file) {
+                videoPlayer.src = URL.createObjectURL(file);
+                showTab('metadataTab');
+                document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
+            } else {
+                alert('Video file not found. Please reselect the folder containing this file.');
+            }
+        }
+
+        // Copy file to destination
+        function copyFile(filePath) {
+            const file = currentFiles.find(f => f.webkitRelativePath === filePath);
+            if (!file) {
+                alert('Video file not found. Please reselect the folder containing this file.');
+                return;
+            }
+
+            const copyDestination = document.getElementById('copyDestination');
+            copyDestination.value = '';
+            copyDestination.onchange = function() {
+                const destinationPath = copyDestination.files.length ? copyDestination.files[0].webkitRelativePath.split('/')[0] : '';
+                if (!destinationPath) {
+                    alert('Please select a destination folder.');
+                    return;
+                }
+                const fileName = filePath.split('/').pop();
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(file);
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+                alert(`File "${fileName}" is ready to download. Please save it to the selected destination folder: ${destinationPath}`);
+                copyDestination.value = '';
+            };
+            copyDestination.click();
+        }
+
+        // Search files
+        function searchFiles() {
+            const diskId = document.getElementById('searchDiskId').value.trim();
+            const programName = document.getElementById('searchProgramName').value.trim();
+            const episodeNumber = document.getElementById('searchEpisodeNumber').value.trim();
+            const telecastDate = document.getElementById('searchTelecastDate').value.trim();
+            const searchMetadata = document.getElementById('searchMetadata').value.trim().toLowerCase();
+            const searchLogic = document.getElementById('searchLogic').value;
+
+            let query = firestore.collection('files');
+            if (diskId) query = query.where('diskId', '==', diskId);
+            if (programName) query = query.where('metadata.Name of Programme', '==', programName);
+            if (episodeNumber) query = query.where('metadata.Episode Number', '==', episodeNumber);
+            if (telecastDate) query = query.where('metadata.Telecast Date', '==', telecastDate);
+
+            query.get().then(snapshot => {
+                const files = snapshot.docs.map(doc => doc.data()).filter(file => {
+                    if (!Object.keys(file.metadata).length) return false;
+                    if (searchMetadata) {
+                        return Object.entries(file.metadata).some(([key, value]) => 
+                            key.toLowerCase().includes(searchMetadata) || 
+                            value.toLowerCase().includes(searchMetadata)
+                        );
+                    }
+                    return true;
+                }).filter(file => {
+                    const diskMatch = !diskId || file.diskId.toLowerCase() === diskId.toLowerCase();
+                    const programMatch = !programName || (file.metadata['Name of Programme'] && file.metadata['Name of Programme'].toLowerCase() === programName.toLowerCase());
+                    const episodeMatch = !episodeNumber || (file.metadata['Episode Number'] && file.metadata['Episode Number'] === episodeNumber);
+                    const dateMatch = !telecastDate || (file.metadata['Telecast Date'] && file.metadata['Telecast Date'] === telecastDate);
+                    if (searchLogic === 'AND') {
+                        return (diskId ? diskMatch : true) && 
+                               (programName ? programMatch : true) && 
+                               (episodeNumber ? episodeMatch : true) && 
+                               (telecastDate ? dateMatch : true);
+                    } else {
+                        return (diskId && diskMatch) || 
+                               (programName && programMatch) || 
+                               (episodeNumber && episodeMatch) || 
+                               (telecastDate && dateMatch);
+                    }
+                }).sort((a, b) => {
+                    const progA = a.metadata['Name of Programme'] || '';
+                    const progB = b.metadata['Name of Programme'] || '';
+                    if (progA !== progB) {
+                        return progA.localeCompare(progB, undefined, { sensitivity: 'base' });
+                    }
+                    const epA = parseInt(a.metadata['Episode Number'] || '0', 10);
+                    const epB = parseInt(b.metadata['Episode Number'] || '0', 10);
+                    return epA - epB;
+                });
+
+                const tableBody = document.getElementById('fileTable');
+                tableBody.innerHTML = '';
+
+                let alertMessage = files.length ? `Found ${files.length} file(s): ` : 'No files match your search.';
+                if (files.length) {
+                    const matches = files.map(file => `Disk ID: ${file.diskId}, Path: ${file.filePath}`).join('; ');
+                    alertMessage += matches;
+                }
+                alert(alertMessage);
+
+                files.forEach(file => {
+                    const metadataStr = Object.entries(file.metadata)
+                        .map(([k, v]) => `${k}: ${v}`)
+                        .join('; ');
+                    const isAccessible = currentFiles.some(f => f.webkitRelativePath === file.filePath);
+                    const row = document.createElement('tr');
+                    row.className = isAccessible ? 'bg-green-100' : 'bg-red-100';
+                    row.setAttribute('data-tooltip', isAccessible ? 'File accessible' : 'File not found, reselect folder');
+                    row.classList.add('tooltip');
+                    row.innerHTML = `
+                        <td class="file-path-column p-3 border">${file.filePath}</td>
+                        <td class="disk-id-column p-3 border">${file.diskId}</td>
+                        <td class="metadata-column p-3 border">${metadataStr}</td>
+                        <td class="actions-column p-3 border">
+                            <button onclick="editMetadata('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata">Edit</button>
+                            <button onclick="playVideoInSearch('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Play video">Play</button>
+                            <button onclick="copyFile('${file.filePath.replace(/'/g, "\\'")}')" class="bg-gray-500 text-white p-1 rounded-lg hover:bg-gray-600 transition tooltip" data-tooltip="Copy file to destination">Copy</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            }).catch(error => {
+                console.error('Failed to search files:', error);
+                alert('Error searching files. Please try again.');
+            });
+        }
+
+        // Export report as CSV
+        function exportReport() {
+            firestore.collection('files').get().then(snapshot => {
+                const files = snapshot.docs.map(doc => doc.data());
+                const filesWithMetadata = files.filter(file => Object.keys(file.metadata).length > 0);
+                
+                const metadataKeys = new Set(['Name of Programme', 'Episode Number', 'Episode Details', 'Telecast Date']);
+                filesWithMetadata.forEach(file => {
+                    Object.keys(file.metadata).forEach(key => metadataKeys.add(key));
+                });
+                const headers = ['File Path', 'Disk ID', ...metadataKeys];
+
+                let csvContent = 'data:text/csv;charset=utf-8,' + headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + '\n';
+                filesWithMetadata.forEach(file => {
+                    const row = [
+                        `"${file.filePath.replace(/"/g, '""')}"`,
+                        `"${file.diskId.replace(/"/g, '""')}"`,
+                        ...headers.slice(2).map(key => {
+                            const value = file.metadata[key] || '';
+                            return `"${value.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
+                        })
+                    ];
+                    csvContent += row.join(',') + '\n';
+                });
+
+                const link = document.createElement('a');
+                link.setAttribute('href', encodeURI(csvContent));
+                link.setAttribute('download', 'video_metadata_report.csv');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                alert('Report exported as CSV!');
+            }).catch(error => {
+                console.error('Failed to export report:', error);
+                alert('Error exporting report. Please try again.');
+            });
+        }
+
+        // Backup data to JSON
+        function backupData() {
+            const backupData = { files: [], programmes: [] };
+            Promise.all([
+                firestore.collection('files').get().then(snapshot => {
+                    backupData.files = snapshot.docs.map(doc => doc.data());
+                }),
+                firestore.collection('programmes').get().then(snapshot => {
+                    backupData.programmes = snapshot.docs.map(doc => doc.data());
+                })
+            ]).then(() => {
+                const jsonContent = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
+                const link = document.createElement('a');
+                link.setAttribute('href', jsonContent);
+                link.setAttribute('download', 'video_manager_backup.json');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+                alert('Data backed up as video_manager_backup.json!');
+            }).catch(error => {
+                console.error('Failed to backup data:', error);
+                alert('Error backing up data. Please try again.');
+            });
+        }
+
+        // Restore data from JSON
+        function restoreData() {
+            const restoreInput = document.getElementById('restoreInput');
+            if (!restoreInput.files.length) {
+                alert('Please select a JSON backup file.');
+                return;
+            }
+            if (!confirm('Restoring data will overwrite existing data. Continue?')) return;
+
+            const file = restoreInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    const batch = firestore.batch();
+                    firestore.collection('files').get().then(snapshot => {
+                        snapshot.forEach(doc => batch.delete(doc.ref));
+                        data.files.forEach(file => {
+                            batch.set(firestore.collection('files').doc(file.filePath), file);
+                        });
+                        firestore.collection('programmes').get().then(snapshot => {
+                            snapshot.forEach(doc => batch.delete(doc.ref));
+                            data.programmes.forEach(prog => {
+                                batch.set(firestore.collection('programmes').doc(prog.id), prog);
+                            });
+                            batch.commit().then(() => {
+                                loadProgrammes();
+                                loadFiles();
+                                loadDisks();
+                                restoreInput.value = '';
+                                alert('Data restored successfully!');
+                            }).catch(error => {
+                                console.error('Failed to restore data:', error);
+                                alert('Error restoring data. Please try again.');
+                            });
+                        });
+                    });
+                } catch (e) {
+                    alert('Invalid JSON file. Please select a valid backup file.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Password check for login
+        function checkPassword() {
+            const password = document.getElementById('passwordInput').value;
+            if (password === 'securepass') {
+                document.getElementById('passwordPrompt').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+                // Initialize default programmes if empty
+                firestore.collection('programmes').get().then(snapshot => {
+                    if (snapshot.empty) {
+                        const defaultProgrammes = ['Stranger Things', 'The Mandalorian', 'FRIENDS', 'Samantharangal'];
+                        const batch = firestore.batch();
+                        defaultProgrammes.forEach(name => {
+                            const id = firestore.collection('programmes').doc().id;
+                            batch.set(firestore.collection('programmes').doc(id), { id, name });
+                        });
+                        batch.commit().then(() => {
+                            loadProgrammes();
+                            loadFiles();
+                            loadDisks();
+                        });
+                    } else {
+                        loadProgrammes();
+                        loadFiles();
+                        loadDisks();
+                    }
+                });
+            } else {
+                alert('Incorrect password. Please try again.');
+            }
+        }
+
+        // Initialize app after authentication
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // User is signed in, app initializes after password check
+            } else {
+                console.error('No user authenticated.');
+                alert('Authentication required. Please try again.');
+            }
+        });
+    </script>
+</body>
+</html>
