@@ -233,7 +233,6 @@
             measurementId: "G-KZ3C92XLJH"
         };
 
-        // Global promise to track Firebase initialization
         window.firebaseInitialized = null;
 
         async function initializeFirebase() {
@@ -259,7 +258,6 @@
                     onAuthStateChanged
                 };
                 console.log('Firebase initialized successfully:', firebaseConfig.projectId);
-                // Enable the Log In button after initialization
                 document.getElementById('loginButton').disabled = false;
                 document.getElementById('loginButton').textContent = 'Log In';
                 return { app, firestore, auth };
@@ -291,7 +289,6 @@
             }
         }
 
-        // Start Firebase initialization and store the promise
         window.firebaseInitialized = initializeFirebase().catch(error => {
             console.error('Initialization failed:', error);
         });
@@ -332,6 +329,24 @@
                                 });
                                 await batch.commit();
                             }
+
+                            // Set up real-time listeners once after authentication
+                            window.firebase.onSnapshot(window.firebase.collection(window.firebase.firestore, 'programmes'), () => {
+                                loadProgrammes();
+                            }, error => {
+                                console.error('Programmes snapshot error:', error);
+                                alert('Error receiving programme updates. Please check Firebase configuration.');
+                            });
+
+                            window.firebase.onSnapshot(window.firebase.collection(window.firebase.firestore, 'files'), () => {
+                                loadFiles();
+                                loadDisks();
+                            }, error => {
+                                console.error('Files snapshot error:', error);
+                                alert('Error receiving file updates. Please check Firebase configuration.');
+                            });
+
+                            // Initial data load
                             await loadProgrammes();
                             await loadFiles();
                             await loadDisks();
@@ -469,12 +484,6 @@
                         <button onclick="deleteProgramme('${p.id}')" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Delete programme">Delete</button>
                     `;
                     list.appendChild(div);
-                });
-
-                window.firebase.onSnapshot(window.firebase.collection(window.firebase.firestore, 'programmes'), () => {
-                    loadProgrammes();
-                }, error => {
-                    console.error('Programme snapshot error:', error);
                 });
             } catch (error) {
                 console.error('Failed to load programmes:', error);
@@ -923,12 +932,6 @@
                     `;
                     tableBody.appendChild(row);
                 });
-
-                window.firebase.onSnapshot(window.firebase.collection(window.firebase.firestore, 'files'), () => {
-                    loadFiles();
-                }, error => {
-                    console.error('Files snapshot error:', error);
-                });
             } catch (error) {
                 console.error('Failed to load files:', error);
                 alert('Error loading files. Please check Firebase configuration and try again.');
@@ -1192,7 +1195,6 @@
             reader.readAsText(file);
         }
 
-        // XLSX parsing logic
         var gk_isXlsx = false;
         var gk_xlsxFileLookup = {};
         var gk_fileData = {};
