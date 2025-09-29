@@ -1,52 +1,11 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video File Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
-        <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-        <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
-        <script type="module" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { 
             background: #f1f5f9; 
@@ -268,22 +227,48 @@
         </main>
 
         <footer class="bg-teal-100 rounded-lg shadow-md mt-6 text-center text-gray-600 text-sm">
-            <p>Video File Manager v2.4 | Built for secure video organization with cloud sync | September 26, 2025</p>
+            <p>Video File Manager v2.4 | Built for secure video organization with cloud sync | September 29, 2025</p>
         </footer>
     </div>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-  const firebaseConfig = { /* your config */ };
-  const app = initializeApp(firebaseConfig);
-  const firestore = getFirestore(app);
-  const auth = getAuth(app);
-  signInAnonymously(auth).catch(e => console.error('Auth error:', e));
-  window.firebase = { firestore, auth }; // Expose to global scope
-</script>
-    <script>
-        // Firebase Initialization
+
+    <script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+            return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+                try {
+                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                    var firstSheetName = workbook.SheetNames[0];
+                    var worksheet = workbook.Sheets[firstSheetName];
+                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                    var filteredData = jsonData.filter(row => row.some(filledCell));
+                    var headerRowIndex = filteredData.findIndex((row, index) =>
+                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                    );
+                    if (headerRowIndex === -1 || headerRowIndex > 25) {
+                        headerRowIndex = 0;
+                    }
+                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
+                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                    return csv;
+                } catch (e) {
+                    console.error('XLSX Error:', e);
+                    return "";
+                }
+            }
+            return gk_fileData[filename] || "";
+        }
+    </script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
         const firebaseConfig = {
             apiKey: "AIzaSyBd2ymMz7Az97T71xsnP3P2XFjTrxEzruc",
             authDomain: "video-manager-sync.firebaseapp.com",
@@ -293,28 +278,32 @@
             appId: "1:772995186320:web:42842957d19e780ebea215",
             measurementId: "G-KZ3C92XLJH"
         };
-        firebase.initializeApp(firebaseConfig);
-        const firestore = firebase.firestore();
-        const auth = firebase.auth();
 
+        const app = initializeApp(firebaseConfig);
+        const firestore = getFirestore(app);
+        const auth = getAuth(app);
+        window.firebase = { firestore, auth };
+
+        signInAnonymously(auth)
+            .then(user => console.log('Authenticated successfully:', user.uid))
+            .catch(error => console.error('Authentication error:', error));
+    </script>
+
+    <script>
         const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.wmv'];
         const EXCLUDE_PREFIXES = ['.', '$', '~'];
         const EXCLUDE_DIRS = ['/Windows', '/System32', '/dev', '/proc', '/sys', '/boot', '/etc'];
         let currentFiles = [];
 
-        // Authenticate anonymously
-        auth.signInAnonymously().catch(error => {
-            console.error('Authentication error:', error);
-            alert('Failed to authenticate. Please try again.');
-        });
+        function sanitizeId(path) {
+            return path.replace(/[\/: ]/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+        }
 
-        // Prompt for backup on window close
         window.addEventListener('beforeunload', function(event) {
             event.preventDefault();
             event.returnValue = 'Would you like to back up your data before closing? Go to the Export tab and click "Backup Data" to save as JSON.';
         });
 
-        // Tab navigation
         function showTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
@@ -322,7 +311,6 @@
             document.querySelector(`button[onclick="showTab('${tabId}')"]`).classList.add('active');
         }
 
-        // Convert text to sentence case
         function toSentenceCase(text) {
             if (!text) return text;
             return text
@@ -336,7 +324,6 @@
                 .trim();
         }
 
-        // Basic grammar checker
         function checkGrammar() {
             const episodeDetails = document.getElementById('episodeDetails').value.trim();
             const suggestionsDiv = document.getElementById('grammarSuggestions');
@@ -386,9 +373,9 @@
             suggestionsDiv.classList.remove('hidden');
         }
 
-        // Load programme names
         function loadProgrammes() {
-            firestore.collection('programmes').get().then(snapshot => {
+            firebase.firestore.collection('programmes').get().then(snapshot => {
+                console.log('Programmes fetched:', snapshot.size);
                 const programmes = snapshot.docs.map(doc => doc.data());
                 const metadataSelect = document.getElementById('programName');
                 const searchSelect = document.getElementById('searchProgramName');
@@ -419,15 +406,14 @@
                 alert('Error loading programmes. Please try again.');
             });
 
-            // Real-time listener for programmes
-            firestore.collection('programmes').onSnapshot(() => {
+            firebase.firestore.collection('programmes').onSnapshot(() => {
                 loadProgrammes();
             });
         }
 
-        // Load disk IDs
         function loadDisks() {
-            firestore.collection('files').get().then(snapshot => {
+            firebase.firestore.collection('files').get().then(snapshot => {
+                console.log('Disks fetched:', snapshot.size);
                 const files = snapshot.docs.map(doc => doc.data());
                 const diskIds = [...new Set(files.map(file => file.diskId))];
                 const diskList = document.getElementById('diskList');
@@ -448,7 +434,6 @@
             });
         }
 
-        // Add programme
         function addProgramme() {
             const name = document.getElementById('newProgramme').value.trim();
             if (!name) {
@@ -456,13 +441,13 @@
                 return;
             }
 
-            firestore.collection('programmes').where('name', '==', name.toLowerCase()).get().then(snapshot => {
+            firebase.firestore.collection('programmes').where('name', '==', name.toLowerCase()).get().then(snapshot => {
                 if (!snapshot.empty) {
                     alert(`Programme "${name}" already exists.`);
                     return;
                 }
-                const id = firestore.collection('programmes').doc().id;
-                firestore.collection('programmes').doc(id).set({ id, name }).then(() => {
+                const id = firebase.firestore.collection('programmes').doc().id;
+                firebase.firestore.collection('programmes').doc(id).set({ id, name }).then(() => {
                     document.getElementById('newProgramme').value = '';
                     alert(`Programme "${name}" added!`);
                 }).catch(error => {
@@ -472,7 +457,6 @@
             });
         }
 
-        // Edit programme
         function editProgramme(id, button) {
             const input = button.previousElementSibling;
             if (button.textContent === 'Edit') {
@@ -486,12 +470,12 @@
                     alert('Please enter a programme name.');
                     return;
                 }
-                firestore.collection('programmes').where('name', '==', newName.toLowerCase()).get().then(snapshot => {
+                firebase.firestore.collection('programmes').where('name', '==', newName.toLowerCase()).get().then(snapshot => {
                     if (!snapshot.empty && snapshot.docs[0].id !== id) {
                         alert(`Programme "${newName}" already exists.`);
                         return;
                     }
-                    firestore.collection('programmes').doc(id).update({ name: newName }).then(() => {
+                    firebase.firestore.collection('programmes').doc(id).update({ name: newName }).then(() => {
                         input.setAttribute('readonly', true);
                         button.textContent = 'Edit';
                         button.className = 'bg-yellow-500 text-white p-2 rounded-lg hover:bg-yellow-600 transition tooltip';
@@ -505,10 +489,9 @@
             }
         }
 
-        // Delete programme
         function deleteProgramme(id) {
             if (!confirm('Are you sure you want to delete this programme?')) return;
-            firestore.collection('programmes').doc(id).delete().then(() => {
+            firebase.firestore.collection('programmes').doc(id).delete().then(() => {
                 alert('Programme deleted!');
             }).catch(error => {
                 console.error('Failed to delete programme:', error);
@@ -516,7 +499,6 @@
             });
         }
 
-        // Toggle other programme input
         function toggleOtherProgrammeInput(select) {
             const otherInput = document.getElementById('otherProgramme');
             otherInput.classList.toggle('hidden', select.value !== 'Other');
@@ -525,7 +507,6 @@
             }
         }
 
-        // Check if file is excluded
         function isExcluded(filePath) {
             const fileName = filePath.split('/').pop();
             if (EXCLUDE_PREFIXES.some(prefix => fileName.startsWith(prefix))) return true;
@@ -533,7 +514,6 @@
             return EXCLUDE_DIRS.some(dir => filePath.includes(dir));
         }
 
-        // Scan disk
         function scanDisk(diskId = null) {
             const inputDiskId = diskId || document.getElementById('diskId').value.trim();
             const diskFolder = diskId ? document.getElementById(`rescanFolder_${diskId.replace(/[^a-zA-Z0-9]/g, '_')}`) : document.getElementById('diskFolder');
@@ -557,14 +537,16 @@
 
             const newFiles = [];
             const existingFiles = new Set();
-            firestore.collection('files').get().then(snapshot => {
+            firebase.firestore.collection('files').get().then(snapshot => {
                 snapshot.docs.forEach(doc => existingFiles.add(doc.data().filePath));
                 const nonArchivedFiles = [];
                 currentFiles.forEach((file, index) => {
                     const filePath = file.webkitRelativePath;
                     if (!isExcluded(filePath)) {
                         if (!existingFiles.has(filePath)) {
-                            firestore.collection('files').doc(filePath).set({ filePath, diskId: inputDiskId, metadata: {} });
+                            firebase.firestore.collection('files').doc(sanitizeId(filePath)).set({ filePath, diskId: inputDiskId, metadata: {} })
+                                .then(() => console.log('Added file:', filePath))
+                                .catch(error => console.error('Error adding file:', filePath, error));
                             newFiles.push(filePath);
                         }
                         nonArchivedFiles.push({ filePath, file });
@@ -572,7 +554,7 @@
                     }
                 });
 
-                firestore.collection('files').where('metadata', '==', {}).get().then(snapshot => {
+                firebase.firestore.collection('files').where('metadata', '==', {}).get().then(snapshot => {
                     const displayFiles = nonArchivedFiles
                         .filter(f => snapshot.docs.some(doc => doc.data().filePath === f.filePath))
                         .sort((a, b) => a.filePath.localeCompare(b.filePath, undefined, { sensitivity: 'base' }));
@@ -610,12 +592,10 @@
             });
         }
 
-        // Rescan disk
         function rescanDisk(diskId) {
             scanDisk(diskId);
         }
 
-        // Edit metadata
         function editMetadata(filePath) {
             document.getElementById('metadataFilePath').value = filePath;
             const programName = document.getElementById('programName');
@@ -652,7 +632,7 @@
                 alert('Video file not found. Please reselect the folder containing this file.');
             }
 
-            firestore.collection('files').doc(filePath).get().then(doc => {
+            firebase.firestore.collection('files').doc(sanitizeId(filePath)).get().then(doc => {
                 const file = doc.data();
                 if (file && Object.keys(file.metadata).length > 0) {
                     const progName = file.metadata['Name of Programme'] || '';
@@ -698,7 +678,6 @@
             });
         }
 
-        // Add custom field
         function addCustomField() {
             const customFields = document.getElementById('customFields');
             const div = document.createElement('div');
@@ -711,12 +690,10 @@
             customFields.appendChild(div);
         }
 
-        // Remove custom field
         function removeCustomField(button) {
             button.parentElement.remove();
         }
 
-        // Save metadata
         function saveMetadata() {
             const filePath = document.getElementById('metadataFilePath').value.trim();
             if (!filePath) {
@@ -724,7 +701,7 @@
                 return;
             }
 
-            firestore.collection('files').doc(filePath).get().then(doc => {
+            firebase.firestore.collection('files').doc(sanitizeId(filePath)).get().then(doc => {
                 if (!doc.exists) {
                     alert('File not found!');
                     return;
@@ -737,10 +714,10 @@
                 if (finalProgramName) {
                     metadata['Name of Programme'] = finalProgramName;
                     if (programName === 'Other' && otherProgramme) {
-                        firestore.collection('programmes').where('name', '==', otherProgramme.toLowerCase()).get().then(snapshot => {
+                        firebase.firestore.collection('programmes').where('name', '==', otherProgramme.toLowerCase()).get().then(snapshot => {
                             if (snapshot.empty) {
-                                const id = firestore.collection('programmes').doc().id;
-                                firestore.collection('programmes').doc(id).set({ id, name: otherProgramme });
+                                const id = firebase.firestore.collection('programmes').doc().id;
+                                firebase.firestore.collection('programmes').doc(id).set({ id, name: otherProgramme });
                             }
                         }).catch(error => {
                             console.error('Failed to add new programme:', error);
@@ -761,7 +738,7 @@
                     if (key && value) metadata[key] = value;
                 });
 
-                firestore.collection('files').doc(filePath).update({ metadata }).then(() => {
+                firebase.firestore.collection('files').doc(sanitizeId(filePath)).update({ metadata }).then(() => {
                     const videoPlayer = document.getElementById('videoPlayer');
                     if (videoPlayer.src) {
                         URL.revokeObjectURL(videoPlayer.src);
@@ -791,9 +768,9 @@
             });
         }
 
-        // Load and display archived files with metadata
         function loadFiles() {
-            firestore.collection('files').get().then(snapshot => {
+            firebase.firestore.collection('files').get().then(snapshot => {
+                console.log('Files fetched:', snapshot.size, snapshot.docs.map(doc => doc.data()));
                 const files = snapshot.docs.map(doc => doc.data());
                 const tableBody = document.getElementById('fileTable');
                 tableBody.innerHTML = '';
@@ -837,13 +814,11 @@
                 alert('Error loading files. Please try again.');
             });
 
-            // Real-time listener for files
-            firestore.collection('files').onSnapshot(() => {
+            firebase.firestore.collection('files').onSnapshot(() => {
                 loadFiles();
             });
         }
 
-        // Play video in search
         function playVideoInSearch(filePath) {
             const file = currentFiles.find(f => f.webkitRelativePath === filePath);
             const videoPlayer = document.getElementById('videoPlayer');
@@ -860,7 +835,6 @@
             }
         }
 
-        // Copy file to destination
         function copyFile(filePath) {
             const file = currentFiles.find(f => f.webkitRelativePath === filePath);
             if (!file) {
@@ -890,7 +864,6 @@
             copyDestination.click();
         }
 
-        // Search files
         function searchFiles() {
             const diskId = document.getElementById('searchDiskId').value.trim();
             const programName = document.getElementById('searchProgramName').value.trim();
@@ -899,7 +872,7 @@
             const searchMetadata = document.getElementById('searchMetadata').value.trim().toLowerCase();
             const searchLogic = document.getElementById('searchLogic').value;
 
-            let query = firestore.collection('files');
+            let query = firebase.firestore.collection('files');
             if (diskId) query = query.where('diskId', '==', diskId);
             if (programName) query = query.where('metadata.Name of Programme', '==', programName);
             if (episodeNumber) query = query.where('metadata.Episode Number', '==', episodeNumber);
@@ -979,9 +952,8 @@
             });
         }
 
-        // Export report as CSV
         function exportReport() {
-            firestore.collection('files').get().then(snapshot => {
+            firebase.firestore.collection('files').get().then(snapshot => {
                 const files = snapshot.docs.map(doc => doc.data());
                 const filesWithMetadata = files.filter(file => Object.keys(file.metadata).length > 0);
                 
@@ -1017,14 +989,13 @@
             });
         }
 
-        // Backup data to JSON
         function backupData() {
             const backupData = { files: [], programmes: [] };
             Promise.all([
-                firestore.collection('files').get().then(snapshot => {
+                firebase.firestore.collection('files').get().then(snapshot => {
                     backupData.files = snapshot.docs.map(doc => doc.data());
                 }),
-                firestore.collection('programmes').get().then(snapshot => {
+                firebase.firestore.collection('programmes').get().then(snapshot => {
                     backupData.programmes = snapshot.docs.map(doc => doc.data());
                 })
             ]).then(() => {
@@ -1043,7 +1014,6 @@
             });
         }
 
-        // Restore data from JSON
         function restoreData() {
             const restoreInput = document.getElementById('restoreInput');
             if (!restoreInput.files.length) {
@@ -1057,16 +1027,16 @@
             reader.onload = function(event) {
                 try {
                     const data = JSON.parse(event.target.result);
-                    const batch = firestore.batch();
-                    firestore.collection('files').get().then(snapshot => {
+                    const batch = firebase.firestore.batch();
+                    firebase.firestore.collection('files').get().then(snapshot => {
                         snapshot.forEach(doc => batch.delete(doc.ref));
                         data.files.forEach(file => {
-                            batch.set(firestore.collection('files').doc(file.filePath), file);
+                            batch.set(firebase.firestore.collection('files').doc(sanitizeId(file.filePath)), file);
                         });
-                        firestore.collection('programmes').get().then(snapshot => {
+                        firebase.firestore.collection('programmes').get().then(snapshot => {
                             snapshot.forEach(doc => batch.delete(doc.ref));
                             data.programmes.forEach(prog => {
-                                batch.set(firestore.collection('programmes').doc(prog.id), prog);
+                                batch.set(firebase.firestore.collection('programmes').doc(prog.id), prog);
                             });
                             batch.commit().then(() => {
                                 loadProgrammes();
@@ -1087,20 +1057,18 @@
             reader.readAsText(file);
         }
 
-        // Password check for login
         function checkPassword() {
             const password = document.getElementById('passwordInput').value;
             if (password === 'securepass') {
                 document.getElementById('passwordPrompt').classList.add('hidden');
                 document.getElementById('mainApp').classList.remove('hidden');
-                // Initialize default programmes if empty
-                firestore.collection('programmes').get().then(snapshot => {
+                firebase.firestore.collection('programmes').get().then(snapshot => {
                     if (snapshot.empty) {
                         const defaultProgrammes = ['Stranger Things', 'The Mandalorian', 'FRIENDS', 'Samantharangal'];
-                        const batch = firestore.batch();
+                        const batch = firebase.firestore.batch();
                         defaultProgrammes.forEach(name => {
-                            const id = firestore.collection('programmes').doc().id;
-                            batch.set(firestore.collection('programmes').doc(id), { id, name });
+                            const id = firebase.firestore.collection('programmes').doc().id;
+                            batch.set(firebase.firestore.collection('programmes').doc(id), { id, name });
                         });
                         batch.commit().then(() => {
                             loadProgrammes();
@@ -1118,10 +1086,9 @@
             }
         }
 
-        // Initialize app after authentication
-        auth.onAuthStateChanged(user => {
+        firebase.auth.onAuthStateChanged(user => {
             if (user) {
-                // User is signed in, app initializes after password check
+                console.log('User authenticated:', user.uid);
             } else {
                 console.error('No user authenticated.');
                 alert('Authentication required. Please try again.');
