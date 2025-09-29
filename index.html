@@ -7,10 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        body { 
-            background: #f1f5f9; 
-            font-family: 'Inter', sans-serif; 
-        }
+        body { background: #f1f5f9; font-family: 'Inter', sans-serif; }
         .tooltip { position: relative; }
         .tooltip:hover::after {
             content: attr(data-tooltip);
@@ -20,16 +17,14 @@
         .progress-bar.active { display: block; }
         .progress-bar div { height: 100%; background: #2dd4bf; transition: width 0.3s; }
         video { max-width: 100%; height: auto; }
-        .tab-button.active { 
-            @apply bg-teal-500 text-white border-b-2 border-teal-600 font-semibold; 
-        }
+        .tab-button.active { @apply bg-teal-500 text-white border-b-2 border-teal-600 font-semibold; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         table { @apply w-full text-sm table-auto; }
         th { @apply sticky top-0 bg-teal-50 font-semibold p-3; }
         td { @apply p-3 border; }
-        select, input[type="date"], input[type="number"], textarea, input[type="text"] { 
-            @apply p-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-teal-300; 
+        select, input[type="date"], input[type="number"], textarea, input[type="text"] {
+            @apply p-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-teal-300;
         }
         textarea { resize: vertical; min-height: 80px; }
         .container { @apply max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8; }
@@ -231,52 +226,19 @@
         </footer>
     </div>
 
-    <script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-            return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-                try {
-                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                    var firstSheetName = workbook.SheetNames[0];
-                    var worksheet = workbook.Sheets[firstSheetName];
-                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                    var filteredData = jsonData.filter(row => row.some(filledCell));
-                    var headerRowIndex = filteredData.findIndex((row, index) =>
-                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                    );
-                    if (headerRowIndex === -1 || headerRowIndex > 25) {
-                        headerRowIndex = 0;
-                    }
-                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
-                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                    return csv;
-                } catch (e) {
-                    console.error('XLSX Error:', e);
-                    return "";
-                }
-            }
-            return gk_fileData[filename] || "";
-        }
-    </script>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         const firebaseConfig = {
-            apiKey: "AIzaSyBd2ymMz7Az97T71xsnP3P2XFjTrxEzruc",
-            authDomain: "video-manager-sync.firebaseapp.com",
-            projectId: "video-manager-sync",
-            storageBucket: "video-manager-sync.firebasestorage.app",
-            messagingSenderId: "772995186320",
-            appId: "1:772995186320:web:42842957d19e780ebea215",
-            measurementId: "G-KZ3C92XLJH"
+            apiKey: "YOUR_ACTUAL_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID",
+            measurementId: "YOUR_MEASUREMENT_ID"
         };
 
         async function initializeFirebase() {
@@ -284,7 +246,23 @@
                 const app = initializeApp(firebaseConfig);
                 const firestore = getFirestore(app);
                 const auth = getAuth(app);
-                window.firebase = { app, firestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where };
+                window.firebase = {
+                    app,
+                    firestore,
+                    collection,
+                    getDocs,
+                    doc,
+                    setDoc,
+                    updateDoc,
+                    deleteDoc,
+                    onSnapshot,
+                    query,
+                    where,
+                    writeBatch,
+                    auth,
+                    signInAnonymously,
+                    onAuthStateChanged
+                };
                 console.log('Firebase initialized successfully:', firebaseConfig.projectId);
                 return { app, firestore, auth };
             } catch (error) {
@@ -313,11 +291,12 @@
             }
         }
 
-        // Initialize Firebase and authenticate
         initializeFirebase().then(({ auth }) => {
-            attemptSignIn(auth);
+            attemptSignIn(auth).catch(error => {
+                console.error('Initialization and authentication failed:', error);
+            });
         }).catch(error => {
-            console.error('Initialization and authentication failed:', error);
+            console.error('Initialization failed:', error);
         });
     </script>
 
@@ -399,19 +378,20 @@
             if (suggestions.length === 0) {
                 suggestionsDiv.innerHTML = 'No grammar issues found.';
             } else {
-                suggestionsDiv.innerHTML = '<p class="font-semibold">Grammar Suggestions:</p><ul class="list-disc pl-5">' + 
+                suggestionsDiv.innerHTML = '<p class="font-semibold">Grammar Suggestions:</p><ul class="list-disc pl-5">' +
                     suggestions.map(s => `<li>${s}</li>`).join('') + '</ul>';
             }
             suggestionsDiv.classList.remove('hidden');
         }
 
-        function loadProgrammes() {
+        async function loadProgrammes() {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
                 return;
             }
-            window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes')).then(snapshot => {
+            try {
+                const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes'));
                 console.log('Programmes fetched:', snapshot.size);
                 const programmes = snapshot.docs.map(doc => doc.data());
                 const metadataSelect = document.getElementById('programName');
@@ -438,25 +418,26 @@
                     `;
                     list.appendChild(div);
                 });
-            }).catch(error => {
+
+                window.firebase.onSnapshot(window.firebase.collection(window.firebase.firestore, 'programmes'), () => {
+                    loadProgrammes();
+                }, error => {
+                    console.error('Programme snapshot error:', error);
+                });
+            } catch (error) {
                 console.error('Failed to load programmes:', error);
                 alert('Error loading programmes. Please check Firebase configuration and try again.');
-            });
-
-            window.firebase.onSnapshot(window.firebase.collection(window.firebase.firestore, 'programmes'), () => {
-                loadProgrammes();
-            }, error => {
-                console.error('Programme snapshot error:', error);
-            });
+            }
         }
 
-        function loadDisks() {
+        async function loadDisks() {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
                 return;
             }
-            window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files')).then(snapshot => {
+            try {
+                const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
                 console.log('Disks fetched:', snapshot.size);
                 const files = snapshot.docs.map(doc => doc.data());
                 const diskIds = [...new Set(files.map(file => file.diskId))];
@@ -472,13 +453,13 @@
                     `;
                     diskList.appendChild(div);
                 });
-            }).catch(error => {
+            } catch (error) {
                 console.error('Failed to load disks:', error);
                 alert('Error loading disks. Please check Firebase configuration and try again.');
-            });
+            }
         }
 
-        function addProgramme() {
+        async function addProgramme() {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.setDoc || !window.firebase.doc || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
@@ -489,27 +470,23 @@
                 alert('Please enter a programme name.');
                 return;
             }
-
-            window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'programmes'), window.firebase.where('name', '==', name.toLowerCase()))).then(snapshot => {
+            try {
+                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'programmes'), window.firebase.where('name', '==', name.toLowerCase())));
                 if (!snapshot.empty) {
                     alert(`Programme "${name}" already exists.`);
                     return;
                 }
                 const id = window.firebase.doc(window.firebase.collection(window.firebase.firestore, 'programmes')).id;
-                window.firebase.setDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id), { id, name }).then(() => {
-                    document.getElementById('newProgramme').value = '';
-                    alert(`Programme "${name}" added!`);
-                }).catch(error => {
-                    console.error('Failed to add programme:', error);
-                    alert('Error adding programme. Please try again.');
-                });
-            }).catch(error => {
-                console.error('Failed to check programme existence:', error);
-                alert('Error checking programme. Please try again.');
-            });
+                await window.firebase.setDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id), { id, name });
+                document.getElementById('newProgramme').value = '';
+                alert(`Programme "${name}" added!`);
+            } catch (error) {
+                console.error('Failed to add programme:', error);
+                alert('Error adding programme. Please try again.');
+            }
         }
 
-        function editProgramme(id, button) {
+        async function editProgramme(id, button) {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.updateDoc || !window.firebase.doc || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
@@ -527,41 +504,39 @@
                     alert('Please enter a programme name.');
                     return;
                 }
-                window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'programmes'), window.firebase.where('name', '==', newName.toLowerCase()))).then(snapshot => {
+                try {
+                    const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'programmes'), window.firebase.where('name', '==', newName.toLowerCase())));
                     if (!snapshot.empty && snapshot.docs[0].id !== id) {
                         alert(`Programme "${newName}" already exists.`);
                         return;
                     }
-                    window.firebase.updateDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id), { name: newName }).then(() => {
-                        input.setAttribute('readonly', true);
-                        button.textContent = 'Edit';
-                        button.className = 'bg-yellow-500 text-white p-2 rounded-lg hover:bg-yellow-600 transition tooltip';
-                        button.setAttribute('data-tooltip', 'Edit programme');
-                        alert(`Programme updated to "${newName}"!`);
-                    }).catch(error => {
-                        console.error('Failed to edit programme:', error);
-                        alert('Error editing programme. Please try again.');
-                    });
-                }).catch(error => {
-                    console.error('Failed to check programme existence:', error);
-                    alert('Error checking programme. Please try again.');
-                });
+                    await window.firebase.updateDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id), { name: newName });
+                    input.setAttribute('readonly', true);
+                    button.textContent = 'Edit';
+                    button.className = 'bg-yellow-500 text-white p-2 rounded-lg hover:bg-yellow-600 transition tooltip';
+                    button.setAttribute('data-tooltip', 'Edit programme');
+                    alert(`Programme updated to "${newName}"!`);
+                } catch (error) {
+                    console.error('Failed to edit programme:', error);
+                    alert('Error editing programme. Please try again.');
+                }
             }
         }
 
-        function deleteProgramme(id) {
+        async function deleteProgramme(id) {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.deleteDoc || !window.firebase.doc || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
                 return;
             }
             if (!confirm('Are you sure you want to delete this programme?')) return;
-            window.firebase.deleteDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id)).then(() => {
+            try {
+                await window.firebase.deleteDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id));
                 alert('Programme deleted!');
-            }).catch(error => {
+            } catch (error) {
                 console.error('Failed to delete programme:', error);
                 alert('Error deleting programme. Please try again.');
-            });
+            }
         }
 
         function toggleOtherProgrammeInput(select) {
@@ -579,7 +554,7 @@
             return EXCLUDE_DIRS.some(dir => filePath.includes(dir));
         }
 
-        function scanDisk(diskId = null) {
+        async function scanDisk(diskId = null) {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.setDoc || !window.firebase.doc || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
@@ -605,9 +580,10 @@
             scannedTable.innerHTML = '';
             currentFiles = Array.from(diskFolder.files);
 
-            const newFiles = [];
-            const existingFiles = new Set();
-            window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files')).then(snapshot => {
+            try {
+                const newFiles = [];
+                const existingFiles = new Set();
+                const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
                 snapshot.docs.forEach(doc => existingFiles.add(doc.data().filePath));
                 const nonArchivedFiles = [];
                 currentFiles.forEach((file, index) => {
@@ -624,52 +600,48 @@
                     }
                 });
 
-                window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('metadata', '==', {}))).then(snapshot => {
-                    const displayFiles = nonArchivedFiles
-                        .filter(f => snapshot.docs.some(doc => doc.data().filePath === f.filePath))
-                        .sort((a, b) => a.filePath.localeCompare(b.filePath, undefined, { sensitivity: 'base' }));
+                const snapshot2 = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('metadata', '==', {})));
+                const displayFiles = nonArchivedFiles
+                    .filter(f => snapshot2.docs.some(doc => doc.data().filePath === f.filePath))
+                    .sort((a, b) => a.filePath.localeCompare(b.filePath, undefined, { sensitivity: 'base' }));
 
-                    displayFiles.forEach(({ filePath, file }) => {
-                        const row = document.createElement('tr');
-                        row.dataset.filePath = filePath;
-                        row.innerHTML = `
-                            <td class="file-path-column p-3 border">${filePath}</td>
-                            <td class="actions-column p-3 border">
-                                <button onclick="editMetadata('${filePath.replace(/'/g, "\\'")}')" 
-                                        class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata and play">
-                                    Edit Metadata
-                                </button>
-                            </td>
-                        `;
-                        scannedTable.appendChild(row);
-                    });
-
-                    progressBar.classList.remove('active');
-                    if (newFiles.length > 0) {
-                        alert(`New files added from folder and subfolders: ${newFiles.join(', ')}\nEdit metadata in the 'Scanned Files' section to archive them.`);
-                    } else {
-                        alert('No new files found during scan.');
-                    }
-                    alert('Scan completed!');
-                    loadFiles();
-                    loadDisks();
-                    showTab('scannedTab');
-                }).catch(error => {
-                    console.error('Failed to fetch scanned files:', error);
-                    alert('Error fetching scanned files. Please try again.');
+                displayFiles.forEach(({ filePath, file }) => {
+                    const row = document.createElement('tr');
+                    row.dataset.filePath = filePath;
+                    row.innerHTML = `
+                        <td class="file-path-column p-3 border">${filePath}</td>
+                        <td class="actions-column p-3 border">
+                            <button onclick="editMetadata('${filePath.replace(/'/g, "\\'")}')" 
+                                    class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata and play">
+                                Edit Metadata
+                            </button>
+                        </td>
+                    `;
+                    scannedTable.appendChild(row);
                 });
-            }).catch(error => {
+
+                progressBar.classList.remove('active');
+                if (newFiles.length > 0) {
+                    alert(`New files added from folder and subfolders: ${newFiles.join(', ')}\nEdit metadata in the 'Scanned Files' section to archive them.`);
+                } else {
+                    alert('No new files found during scan.');
+                }
+                alert('Scan completed!');
+                await loadFiles();
+                await loadDisks();
+                showTab('scannedTab');
+            } catch (error) {
                 console.error('Failed to scan disk:', error);
                 progressBar.classList.remove('active');
                 alert('Error scanning disk. Please check Firebase configuration and try again.');
-            });
+            }
         }
 
         function rescanDisk(diskId) {
             scanDisk(diskId);
         }
 
-        function editMetadata(filePath) {
+        async function editMetadata(filePath) {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.doc || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
@@ -710,7 +682,8 @@
                 alert('Video file not found. Please reselect the folder containing this file.');
             }
 
-            window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', filePath))).then(snapshot => {
+            try {
+                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', filePath)));
                 if (snapshot.empty) {
                     alert('File not found in Firestore.');
                     return;
@@ -754,10 +727,10 @@
                 showTab('metadataTab');
                 document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
                 programName.focus();
-            }).catch(error => {
+            } catch (error) {
                 console.error('Failed to load metadata:', error);
                 alert('Error loading metadata. Please check Firebase configuration and try again.');
-            });
+            }
         }
 
         function addCustomField() {
@@ -776,7 +749,7 @@
             button.parentElement.remove();
         }
 
-        function saveMetadata() {
+        async function saveMetadata() {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.updateDoc || !window.firebase.doc || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
@@ -788,7 +761,8 @@
                 return;
             }
 
-            window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', filePath))).then(snapshot => {
+            try {
+                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', filePath)));
                 if (snapshot.empty) {
                     alert('File not found!');
                     return;
@@ -801,15 +775,11 @@
                 if (finalProgramName) {
                     metadata['Name of Programme'] = finalProgramName;
                     if (programName === 'Other' && otherProgramme) {
-                        window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'programmes'), window.firebase.where('name', '==', otherProgramme.toLowerCase()))).then(snapshot => {
-                            if (snapshot.empty) {
-                                const id = window.firebase.doc(window.firebase.collection(window.firebase.firestore, 'programmes')).id;
-                                window.firebase.setDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id), { id, name: otherProgramme });
-                            }
-                        }).catch(error => {
-                            console.error('Failed to add new programme:', error);
-                            alert('Error adding new programme. Please try again.');
-                        });
+                        const progSnapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'programmes'), window.firebase.where('name', '==', otherProgramme.toLowerCase())));
+                        if (progSnapshot.empty) {
+                            const id = window.firebase.doc(window.firebase.collection(window.firebase.firestore, 'programmes')).id;
+                            await window.firebase.setDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id), { id, name: otherProgramme });
+                        }
                     }
                 }
                 const episodeNumber = document.getElementById('episodeNumber').value.trim();
@@ -825,46 +795,43 @@
                     if (key && value) metadata[key] = value;
                 });
 
-                window.firebase.updateDoc(docRef, { metadata }).then(() => {
-                    const videoPlayer = document.getElementById('videoPlayer');
-                    if (videoPlayer.src) {
-                        URL.revokeObjectURL(videoPlayer.src);
-                        videoPlayer.src = '';
+                await window.firebase.updateDoc(docRef, { metadata });
+                const videoPlayer = document.getElementById('videoPlayer');
+                if (videoPlayer.src) {
+                    URL.revokeObjectURL(videoPlayer.src);
+                    videoPlayer.src = '';
+                }
+                document.getElementById('grammarSuggestions').classList.add('hidden');
+                alert(`Metadata saved for "${filePath.split('/').pop()}". Updated in 'Archived Files'.`);
+                const scannedTable = document.getElementById('scannedTable');
+                const rows = Array.from(scannedTable.querySelectorAll('tr'));
+                const currentRow = rows.find(row => row.dataset.filePath === filePath);
+                if (currentRow) currentRow.remove();
+                if (rows.length > 1) {
+                    const nextRow = rows.find(row => row.dataset.filePath !== filePath);
+                    if (nextRow) {
+                        const nextFilePath = nextRow.dataset.filePath;
+                        await editMetadata(nextFilePath);
                     }
-                    document.getElementById('grammarSuggestions').classList.add('hidden');
-                    alert(`Metadata saved for "${filePath.split('/').pop()}". Updated in 'Archived Files'.`);
-                    const scannedTable = document.getElementById('scannedTable');
-                    const rows = Array.from(scannedTable.querySelectorAll('tr'));
-                    const currentRow = rows.find(row => row.dataset.filePath === filePath);
-                    if (currentRow) currentRow.remove();
-                    if (rows.length > 1) {
-                        const nextRow = rows.find(row => row.dataset.filePath !== filePath);
-                        if (nextRow) {
-                            const nextFilePath = nextRow.dataset.filePath;
-                            editMetadata(nextFilePath);
-                        }
-                    } else {
-                        alert('All scanned files have been archived!');
-                        showTab('scannedTab');
-                    }
-                    document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
-                }).catch(error => {
-                    console.error('Failed to save metadata:', error);
-                    alert('Error saving metadata. Please check Firebase configuration and try again.');
-                });
-            }).catch(error => {
-                console.error('Failed to fetch file:', error);
-                alert('Error fetching file. Please try again.');
-            });
+                } else {
+                    alert('All scanned files have been archived!');
+                    showTab('scannedTab');
+                }
+                document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                console.error('Failed to save metadata:', error);
+                alert('Error saving metadata. Please check Firebase configuration and try again.');
+            }
         }
 
-        function loadFiles() {
+        async function loadFiles() {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
                 return;
             }
-            window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files')).then(snapshot => {
+            try {
+                const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
                 console.log('Files fetched:', snapshot.size, snapshot.docs.map(doc => doc.data()));
                 const files = snapshot.docs.map(doc => doc.data());
                 const tableBody = document.getElementById('fileTable');
@@ -904,16 +871,16 @@
                     `;
                     tableBody.appendChild(row);
                 });
-            }).catch(error => {
+
+                window.firebase.onSnapshot(window.firebase.collection(window.firebase.firestore, 'files'), () => {
+                    loadFiles();
+                }, error => {
+                    console.error('Files snapshot error:', error);
+                });
+            } catch (error) {
                 console.error('Failed to load files:', error);
                 alert('Error loading files. Please check Firebase configuration and try again.');
-            });
-
-            window.firebase.onSnapshot(window.firebase.collection(window.firebase.firestore, 'files'), () => {
-                loadFiles();
-            }, error => {
-                console.error('Files snapshot error:', error);
-            });
+            }
         }
 
         function playVideoInSearch(filePath) {
@@ -961,7 +928,7 @@
             copyDestination.click();
         }
 
-        function searchFiles() {
+        async function searchFiles() {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.query || !window.firebase.where || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
@@ -974,20 +941,21 @@
             const searchMetadata = document.getElementById('searchMetadata').value.trim().toLowerCase();
             const searchLogic = document.getElementById('searchLogic').value;
 
-            let q = window.firebase.collection(window.firebase.firestore, 'files');
-            const conditions = [];
-            if (diskId) conditions.push(window.firebase.where('diskId', '==', diskId));
-            if (programName) conditions.push(window.firebase.where('metadata.Name of Programme', '==', programName));
-            if (episodeNumber) conditions.push(window.firebase.where('metadata.Episode Number', '==', episodeNumber));
-            if (telecastDate) conditions.push(window.firebase.where('metadata.Telecast Date', '==', telecastDate));
-            if (conditions.length > 0) q = window.firebase.query(q, ...conditions);
+            try {
+                let q = window.firebase.collection(window.firebase.firestore, 'files');
+                const conditions = [];
+                if (diskId) conditions.push(window.firebase.where('diskId', '==', diskId));
+                if (programName) conditions.push(window.firebase.where('metadata.Name of Programme', '==', programName));
+                if (episodeNumber) conditions.push(window.firebase.where('metadata.Episode Number', '==', episodeNumber));
+                if (telecastDate) conditions.push(window.firebase.where('metadata.Telecast Date', '==', telecastDate));
+                if (conditions.length > 0) q = window.firebase.query(q, ...conditions);
 
-            window.firebase.getDocs(q).then(snapshot => {
+                const snapshot = await window.firebase.getDocs(q);
                 const files = snapshot.docs.map(doc => doc.data()).filter(file => {
                     if (!Object.keys(file.metadata).length) return false;
                     if (searchMetadata) {
-                        return Object.entries(file.metadata).some(([key, value]) => 
-                            key.toLowerCase().includes(searchMetadata) || 
+                        return Object.entries(file.metadata).some(([key, value]) =>
+                            key.toLowerCase().includes(searchMetadata) ||
                             value.toLowerCase().includes(searchMetadata)
                         );
                     }
@@ -998,14 +966,14 @@
                     const episodeMatch = !episodeNumber || (file.metadata['Episode Number'] && file.metadata['Episode Number'] === episodeNumber);
                     const dateMatch = !telecastDate || (file.metadata['Telecast Date'] && file.metadata['Telecast Date'] === telecastDate);
                     if (searchLogic === 'AND') {
-                        return (diskId ? diskMatch : true) && 
-                               (programName ? programMatch : true) && 
-                               (episodeNumber ? episodeMatch : true) && 
+                        return (diskId ? diskMatch : true) &&
+                               (programName ? programMatch : true) &&
+                               (episodeNumber ? episodeMatch : true) &&
                                (telecastDate ? dateMatch : true);
                     } else {
-                        return (diskId && diskMatch) || 
-                               (programName && programMatch) || 
-                               (episodeNumber && episodeMatch) || 
+                        return (diskId && diskMatch) ||
+                               (programName && programMatch) ||
+                               (episodeNumber && episodeMatch) ||
                                (telecastDate && dateMatch);
                     }
                 }).sort((a, b) => {
@@ -1050,22 +1018,23 @@
                     `;
                     tableBody.appendChild(row);
                 });
-            }).catch(error => {
+            } catch (error) {
                 console.error('Failed to search files:', error);
                 alert('Error searching files. Please check Firebase configuration and try again.');
-            });
+            }
         }
 
-        function exportReport() {
+        async function exportReport() {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
                 return;
             }
-            window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files')).then(snapshot => {
+            try {
+                const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
                 const files = snapshot.docs.map(doc => doc.data());
                 const filesWithMetadata = files.filter(file => Object.keys(file.metadata).length > 0);
-                
+
                 const metadataKeys = new Set(['Name of Programme', 'Episode Number', 'Episode Details', 'Telecast Date']);
                 filesWithMetadata.forEach(file => {
                     Object.keys(file.metadata).forEach(key => metadataKeys.add(key));
@@ -1092,27 +1061,27 @@
                 link.click();
                 document.body.removeChild(link);
                 alert('Report exported as CSV!');
-            }).catch(error => {
+            } catch (error) {
                 console.error('Failed to export report:', error);
                 alert('Error exporting report. Please check Firebase configuration and try again.');
-            });
+            }
         }
 
-        function backupData() {
+        async function backupData() {
             if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
                 return;
             }
-            const backupData = { files: [], programmes: [] };
-            Promise.all([
-                window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files')).then(snapshot => {
-                    backupData.files = snapshot.docs.map(doc => doc.data());
-                }),
-                window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes')).then(snapshot => {
-                    backupData.programmes = snapshot.docs.map(doc => doc.data());
-                })
-            ]).then(() => {
+            try {
+                const backupData = { files: [], programmes: [] };
+                const [fileSnapshot, progSnapshot] = await Promise.all([
+                    window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files')),
+                    window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes'))
+                ]);
+                backupData.files = fileSnapshot.docs.map(doc => doc.data());
+                backupData.programmes = progSnapshot.docs.map(doc => doc.data());
+
                 const jsonContent = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
                 const link = document.createElement('a');
                 link.setAttribute('href', jsonContent);
@@ -1122,14 +1091,14 @@
                 document.body.removeChild(link);
                 URL.revokeObjectURL(link.href);
                 alert('Data backed up as video_manager_backup.json!');
-            }).catch(error => {
+            } catch (error) {
                 console.error('Failed to backup data:', error);
                 alert('Error backing up data. Please check Firebase configuration and try again.');
-            });
+            }
         }
 
-        function restoreData() {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.setDoc || !window.firebase.doc || !window.firebase.collection) {
+        async function restoreData() {
+            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.setDoc || !window.firebase.doc || !window.firebase.collection || !window.firebase.writeBatch) {
                 console.error('Firestore not initialized.');
                 alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
                 return;
@@ -1143,88 +1112,111 @@
 
             const file = restoreInput.files[0];
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = async function(event) {
                 try {
                     const data = JSON.parse(event.target.result);
-                    const batch = window.firebase.firestore.batch();
-                    window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files')).then(snapshot => {
-                        snapshot.forEach(doc => batch.delete(doc.ref));
-                        data.files.forEach(file => {
-                            batch.set(window.firebase.doc(window.firebase.firestore, 'files', sanitizeId(file.filePath)), file);
-                        });
-                        window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes')).then(snapshot => {
-                            snapshot.forEach(doc => batch.delete(doc.ref));
-                            data.programmes.forEach(prog => {
-                                batch.set(window.firebase.doc(window.firebase.firestore, 'programmes', prog.id), prog);
-                            });
-                            batch.commit().then(() => {
-                                loadProgrammes();
-                                loadFiles();
-                                loadDisks();
-                                restoreInput.value = '';
-                                alert('Data restored successfully!');
-                            }).catch(error => {
-                                console.error('Failed to restore data:', error);
-                                alert('Error restoring data. Please check Firebase configuration and try again.');
-                            });
-                        });
+                    const batch = window.firebase.writeBatch(window.firebase.firestore);
+                    const fileSnapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
+                    fileSnapshot.forEach(doc => batch.delete(doc.ref));
+                    data.files.forEach(file => {
+                        batch.set(window.firebase.doc(window.firebase.firestore, 'files', sanitizeId(file.filePath)), file);
                     });
-                } catch (e) {
-                    alert('Invalid JSON file. Please select a valid backup file.');
+                    const progSnapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes'));
+                    progSnapshot.forEach(doc => batch.delete(doc.ref));
+                    data.programmes.forEach(prog => {
+                        batch.set(window.firebase.doc(window.firebase.firestore, 'programmes', prog.id), prog);
+                    });
+                    await batch.commit();
+                    await loadProgrammes();
+                    await loadFiles();
+                    await loadDisks();
+                    restoreInput.value = '';
+                    alert('Data restored successfully!');
+                } catch (error) {
+                    console.error('Failed to restore data:', error);
+                    alert('Error restoring data. Please check the JSON file or Firebase configuration and try again.');
                 }
             };
             reader.readAsText(file);
         }
 
-        function checkPassword() {
+        async function checkPassword() {
             const password = document.getElementById('passwordInput').value;
             if (password !== 'securepass') {
                 alert('Incorrect password. Please try again.');
                 return;
             }
 
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
+            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection || !window.firebase.auth || !window.firebase.onAuthStateChanged) {
+                console.error('Firebase not initialized properly.');
+                alert('Firebase is not initialized. Please check Firebase configuration and reload the page.');
                 return;
             }
 
-            window.firebase.auth.onAuthStateChanged(user => {
+            window.firebase.onAuthStateChanged(window.firebase.auth, async user => {
                 if (user) {
                     console.log('User authenticated:', user.uid);
                     document.getElementById('passwordPrompt').classList.add('hidden');
                     document.getElementById('mainApp').classList.remove('hidden');
 
-                    window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes')).then(snapshot => {
+                    try {
+                        const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes'));
                         if (snapshot.empty) {
                             const defaultProgrammes = ['Stranger Things', 'The Mandalorian', 'FRIENDS', 'Samantharangal'];
-                            const batch = window.firebase.firestore.batch();
+                            const batch = window.firebase.writeBatch(window.firebase.firestore);
                             defaultProgrammes.forEach(name => {
                                 const id = window.firebase.doc(window.firebase.collection(window.firebase.firestore, 'programmes')).id;
                                 batch.set(window.firebase.doc(window.firebase.firestore, 'programmes', id), { id, name });
                             });
-                            batch.commit().then(() => {
-                                loadProgrammes();
-                                loadFiles();
-                                loadDisks();
-                            }).catch(error => {
-                                console.error('Error initializing default programmes:', error);
-                                alert('Error initializing app. Please check Firebase configuration and try again.');
-                            });
-                        } else {
-                            loadProgrammes();
-                            loadFiles();
-                            loadDisks();
+                            await batch.commit();
                         }
-                    }).catch(error => {
+                        await loadProgrammes();
+                        await loadFiles();
+                        await loadDisks();
+                    } catch (error) {
                         console.error('Error checking programmes:', error);
                         alert('Error loading app. Please check Firebase configuration and try again.');
-                    });
+                    }
                 } else {
                     console.error('No user authenticated.');
                     alert('Authentication failed. Please ensure anonymous authentication is enabled in Firebase Console and try again.');
                 }
+            }, error => {
+                console.error('Auth state change error:', error);
+                alert('Error checking authentication state. Please try again.');
             });
+        }
+
+        // XLSX parsing logic
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+            return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+                try {
+                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                    var firstSheetName = workbook.SheetNames[0];
+                    var worksheet = workbook.Sheets[firstSheetName];
+                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                    var filteredData = jsonData.filter(row => row.some(filledCell));
+                    var headerRowIndex = filteredData.findIndex((row, index) =>
+                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                    );
+                    if (headerRowIndex === -1 || headerRowIndex > 25) {
+                        headerRowIndex = 0;
+                    }
+                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
+                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                    return csv;
+                } catch (e) {
+                    console.error('XLSX Error:', e);
+                    return "";
+                }
+            }
+            return gk_fileData[filename] || "";
         }
     </script>
 </body>
