@@ -269,24 +269,46 @@
         import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+        // Replace with your actual Firebase config from Firebase Console > Project Settings
         const firebaseConfig = {
-            apiKey: "AIzaSyBd2ymMz7Az97T71xsnP3P2XFjTrxEzruc",
-            authDomain: "video-manager-sync.firebaseapp.com",
-            projectId: "video-manager-sync",
-            storageBucket: "video-manager-sync.firebasestorage.app",
-            messagingSenderId: "772995186320",
-            appId: "1:772995186320:web:42842957d19e780ebea215",
-            measurementId: "G-KZ3C92XLJH"
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID",
+            measurementId: "YOUR_MEASUREMENT_ID" // Optional
         };
 
-        const app = initializeApp(firebaseConfig);
-        const firestore = getFirestore(app);
-        const auth = getAuth(app);
-        window.firebase = { app, firestore, auth }; // Expose to global scope
+        try {
+            const app = initializeApp(firebaseConfig);
+            const firestore = getFirestore(app);
+            const auth = getAuth(app);
+            window.firebase = { app, firestore, auth }; // Expose to global scope
+            console.log('Firebase initialized successfully:', firebaseConfig.projectId);
 
-        signInAnonymously(auth)
-            .then(user => console.log('Authenticated successfully:', user.uid))
-            .catch(error => console.error('Authentication error:', error));
+            // Retry authentication up to 3 times
+            async function attemptSignIn(attempt = 1, maxAttempts = 3) {
+                try {
+                    const userCredential = await signInAnonymously(auth);
+                    console.log('Authenticated successfully:', userCredential.user.uid);
+                } catch (error) {
+                    console.error(`Authentication attempt ${attempt} failed:`, error);
+                    if (attempt < maxAttempts) {
+                        console.log(`Retrying authentication (${attempt + 1}/${maxAttempts})...`);
+                        setTimeout(() => attemptSignIn(attempt + 1, maxAttempts), 1000);
+                    } else {
+                        console.error('Authentication failed after max attempts:', error);
+                        alert('Failed to authenticate with Firebase. Please check your Firebase configuration and ensure anonymous authentication is enabled.');
+                    }
+                }
+            }
+
+            attemptSignIn();
+        } catch (error) {
+            console.error('Firebase initialization failed:', error);
+            alert('Failed to initialize Firebase. Please check your Firebase configuration in the Firebase Console.');
+        }
     </script>
 
     <script>
@@ -403,11 +425,13 @@
                 });
             }).catch(error => {
                 console.error('Failed to load programmes:', error);
-                alert('Error loading programmes. Please try again.');
+                alert('Error loading programmes. Please check Firebase configuration and try again.');
             });
 
             window.firebase.firestore.collection('programmes').onSnapshot(() => {
                 loadProgrammes();
+            }, error => {
+                console.error('Programme snapshot error:', error);
             });
         }
 
@@ -430,7 +454,7 @@
                 });
             }).catch(error => {
                 console.error('Failed to load disks:', error);
-                alert('Error loading disks. Please try again.');
+                alert('Error loading disks. Please check Firebase configuration and try again.');
             });
         }
 
@@ -588,7 +612,7 @@
             }).catch(error => {
                 console.error('Failed to scan disk:', error);
                 progressBar.classList.remove('active');
-                alert('Error scanning disk. Please try again.');
+                alert('Error scanning disk. Please check Firebase configuration and try again.');
             });
         }
 
@@ -674,7 +698,7 @@
                 programName.focus();
             }).catch(error => {
                 console.error('Failed to load metadata:', error);
-                alert('Error loading metadata. Please try again.');
+                alert('Error loading metadata. Please check Firebase configuration and try again.');
             });
         }
 
@@ -763,7 +787,7 @@
                     document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
                 }).catch(error => {
                     console.error('Failed to save metadata:', error);
-                    alert('Error saving metadata. Please try again.');
+                    alert('Error saving metadata. Please check Firebase configuration and try again.');
                 });
             });
         }
@@ -811,11 +835,13 @@
                 });
             }).catch(error => {
                 console.error('Failed to load files:', error);
-                alert('Error loading files. Please try again.');
+                alert('Error loading files. Please check Firebase configuration and try again.');
             });
 
             window.firebase.firestore.collection('files').onSnapshot(() => {
                 loadFiles();
+            }, error => {
+                console.error('Files snapshot error:', error);
             });
         }
 
@@ -948,7 +974,7 @@
                 });
             }).catch(error => {
                 console.error('Failed to search files:', error);
-                alert('Error searching files. Please try again.');
+                alert('Error searching files. Please check Firebase configuration and try again.');
             });
         }
 
@@ -985,7 +1011,7 @@
                 alert('Report exported as CSV!');
             }).catch(error => {
                 console.error('Failed to export report:', error);
-                alert('Error exporting report. Please try again.');
+                alert('Error exporting report. Please check Firebase configuration and try again.');
             });
         }
 
@@ -1010,7 +1036,7 @@
                 alert('Data backed up as video_manager_backup.json!');
             }).catch(error => {
                 console.error('Failed to backup data:', error);
-                alert('Error backing up data. Please try again.');
+                alert('Error backing up data. Please check Firebase configuration and try again.');
             });
         }
 
@@ -1046,7 +1072,7 @@
                                 alert('Data restored successfully!');
                             }).catch(error => {
                                 console.error('Failed to restore data:', error);
-                                alert('Error restoring data. Please try again.');
+                                alert('Error restoring data. Please check Firebase configuration and try again.');
                             });
                         });
                     });
@@ -1086,7 +1112,7 @@
                                 loadDisks();
                             }).catch(error => {
                                 console.error('Error initializing default programmes:', error);
-                                alert('Error initializing app. Please try again.');
+                                alert('Error initializing app. Please check Firebase configuration and try again.');
                             });
                         } else {
                             loadProgrammes();
@@ -1095,11 +1121,11 @@
                         }
                     }).catch(error => {
                         console.error('Error checking programmes:', error);
-                        alert('Error loading app. Please try again.');
+                        alert('Error loading app. Please check Firebase configuration and try again.');
                     });
                 } else {
                     console.error('No user authenticated.');
-                    alert('Authentication failed. Please try again.');
+                    alert('Authentication failed. Please ensure anonymous authentication is enabled in Firebase Console and try again.');
                 }
             });
         }
