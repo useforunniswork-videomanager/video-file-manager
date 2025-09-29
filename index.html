@@ -42,13 +42,13 @@
 </head>
 <body class="min-h-screen">
     <div id="passwordPrompt" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center">
-        <div class="bg-white p-6 rounded-lg shadow-md max-w-md w-full">
-            <h2 class="text-xl font-semibold mb-4 text-gray-800">Welcome!</h2>
-            <p class="text-gray-600 mb-4">Enter password to access Video File Manager.</p>
-            <input type="password" id="passwordInput" class="p-2 border rounded-lg w-full mb-4 focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="Password">
-            <button onclick="checkPassword()" class="bg-teal-500 text-white p-2 rounded-lg w-full hover:bg-teal-600 transition">Log In</button>
-        </div>
+    <div class="bg-white p-6 rounded-lg shadow-md max-w-md w-full">
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">Welcome!</h2>
+        <p class="text-gray-600 mb-4">Enter password to access Video File Manager.</p>
+        <input type="password" id="passwordInput" class="p-2 border rounded-lg w-full mb-4 focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="Password">
+        <button id="loginButton" onclick="checkPassword()" class="bg-teal-500 text-white p-2 rounded-lg w-full hover:bg-teal-600 transition" disabled>Loading...</button>
     </div>
+</div>
 
     <div id="mainApp" class="container min-h-screen hidden">
         <header class="bg-teal-100 rounded-lg shadow-md mb-6">
@@ -227,78 +227,80 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        const firebaseConfig = {
-  apiKey: "AIzaSyBd2ymMz7Az97T71xsnP3P2XFjTrxEzruc",
-  authDomain: "video-manager-sync.firebaseapp.com",
-  projectId: "video-manager-sync",
-  storageBucket: "video-manager-sync.firebasestorage.app",
-  messagingSenderId: "772995186320",
-  appId: "1:772995186320:web:42842957d19e780ebea215",
-  measurementId: "G-KZ3C92XLJH"
-};
+    const firebaseConfig = {
+        apiKey: "YOUR_ACTUAL_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID",
+        measurementId: "YOUR_MEASUREMENT_ID"
+    };
 
-        async function initializeFirebase() {
-            try {
-                const app = initializeApp(firebaseConfig);
-                const firestore = getFirestore(app);
-                const auth = getAuth(app);
-                window.firebase = {
-                    app,
-                    firestore,
-                    collection,
-                    getDocs,
-                    doc,
-                    setDoc,
-                    updateDoc,
-                    deleteDoc,
-                    onSnapshot,
-                    query,
-                    where,
-                    writeBatch,
-                    auth,
-                    signInAnonymously,
-                    onAuthStateChanged
-                };
-                console.log('Firebase initialized successfully:', firebaseConfig.projectId);
-                return { app, firestore, auth };
-            } catch (error) {
-                console.error('Firebase initialization failed:', error);
-                alert('Failed to initialize Firebase. Please check your Firebase configuration in the Firebase Console.');
+        // Global promise to track Firebase initialization
+    let firebaseInitialized = null;
+
+    async function initializeFirebase() {
+        try {
+            const app = initializeApp(firebaseConfig);
+            const firestore = getFirestore(app);
+            const auth = getAuth(app);
+            window.firebase = {
+                app,
+                firestore,
+                collection,
+                getDocs,
+                doc,
+                setDoc,
+                updateDoc,
+                deleteDoc,
+                onSnapshot,
+                query,
+                where,
+                writeBatch,
+                auth,
+                signInAnonymously,
+                onAuthStateChanged
+            };
+            console.log('Firebase initialized successfully:', firebaseConfig.projectId);
+            // Enable the Log In button after initialization
+            document.getElementById('loginButton').disabled = false;
+            return { app, firestore, auth };
+        } catch (error) {
+            console.error('Firebase initialization failed:', error);
+            alert('Failed to initialize Firebase. Please check your Firebase configuration and reload the page.');
+            throw error;
+        }
+    }
+
+        async function attemptSignIn(auth, attempt = 1, maxAttempts = 3) {
+        try {
+            const userCredential = await signInAnonymously(auth);
+            console.log('Authenticated successfully:', userCredential.user.uid);
+            return userCredential.user;
+        } catch (error) {
+            console.error(`Authentication attempt ${attempt} failed:`, error);
+            if (attempt < maxAttempts) {
+                console.log(`Retrying authentication (${attempt + 1}/${maxAttempts})...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return attemptSignIn(auth, attempt + 1, maxAttempts);
+            } else {
+                console.error('Authentication failed after max attempts:', error);
+                alert('Failed to authenticate with Firebase. Please ensure anonymous authentication is enabled and try again.');
                 throw error;
             }
         }
+    }
 
-        async function attemptSignIn(auth, attempt = 1, maxAttempts = 3) {
-            try {
-                const userCredential = await signInAnonymously(auth);
-                console.log('Authenticated successfully:', userCredential.user.uid);
-                return userCredential.user;
-            } catch (error) {
-                console.error(`Authentication attempt ${attempt} failed:`, error);
-                if (attempt < maxAttempts) {
-                    console.log(`Retrying authentication (${attempt + 1}/${maxAttempts})...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    return attemptSignIn(auth, attempt + 1, maxAttempts);
-                } else {
-                    console.error('Authentication failed after max attempts:', error);
-                    alert('Failed to authenticate with Firebase. Please ensure anonymous authentication is enabled in the Firebase Console.');
-                    throw error;
-                }
-            }
-        }
-
-        initializeFirebase().then(({ auth }) => {
-            attemptSignIn(auth).catch(error => {
-                console.error('Initialization and authentication failed:', error);
-            });
-        }).catch(error => {
-            console.error('Initialization failed:', error);
-        });
-    </script>
+        // Start Firebase initialization and store the promise
+    firebaseInitialized = initializeFirebase().catch(error => {
+        console.error('Initialization failed:', error);
+    });
+</script>
 
     <script>
         const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.wmv'];
@@ -1140,15 +1142,19 @@
             reader.readAsText(file);
         }
 
-        async function checkPassword() {
-            const password = document.getElementById('passwordInput').value;
-            if (password !== 'securepass') {
-                alert('Incorrect password. Please try again.');
-                return;
-            }
+<script>
+    async function checkPassword() {
+        const password = document.getElementById('passwordInput').value;
+        if (password !== 'securepass') {
+            alert('Incorrect password. Please try again.');
+            return;
+        }
 
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection || !window.firebase.auth || !window.firebase.onAuthStateChanged) {
-                console.error('Firebase not initialized properly.');
+           // Wait for Firebase initialization to complete
+        try {
+            await firebaseInitialized;
+            if (!window.firebase || !window.firebase.firestore || !window.firebase.auth || !window.firebase.onAuthStateChanged) {
+                console.error('Firebase not initialized properly:', window.firebase);
                 alert('Firebase is not initialized. Please check Firebase configuration and reload the page.');
                 return;
             }
@@ -1174,7 +1180,7 @@
                         await loadFiles();
                         await loadDisks();
                     } catch (error) {
-                        console.error('Error checking programmes:', error);
+                        console.error('Error loading app data:', error);
                         alert('Error loading app. Please check Firebase configuration and try again.');
                     }
                 } else {
@@ -1185,7 +1191,20 @@
                 console.error('Auth state change error:', error);
                 alert('Error checking authentication state. Please try again.');
             });
+
+            // Attempt sign-in
+            try {
+                await attemptSignIn(window.firebase.auth);
+            } catch (error) {
+                console.error('Sign-in failed:', error);
+                alert('Failed to sign in. Please try again.');
+            }
+        } catch (error) {
+            console.error('Firebase initialization not completed:', error);
+            alert('Firebase initialization failed. Please reload the page and try again.');
         }
+    }
+</script>
 
         // XLSX parsing logic
         var gk_isXlsx = false;
