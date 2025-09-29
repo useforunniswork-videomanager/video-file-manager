@@ -330,7 +330,6 @@
                                 await batch.commit();
                             }
 
-                            // Set up real-time listeners once after authentication
                             window.firebase.onSnapshot(window.firebase.collection(window.firebase.firestore, 'programmes'), () => {
                                 loadProgrammes();
                             }, error => {
@@ -346,7 +345,6 @@
                                 alert('Error receiving file updates. Please check Firebase configuration.');
                             });
 
-                            // Initial data load
                             await loadProgrammes();
                             await loadFiles();
                             await loadDisks();
@@ -379,12 +377,11 @@
 
         function normalizePath(filePath) {
             if (!filePath) return '';
-            // Remove drive letter, normalize separators, remove leading/trailing slashes, and convert to lowercase
             return filePath
-                .replace(/^[a-zA-Z]:[\\\/]/, '') // Remove drive letter (e.g., D:/ or E:/)
-                .replace(/\\/g, '/') // Convert backslashes to forward slashes
-                .replace(/^\/+|\/+$/g, '') // Remove leading/trailing slashes
-                .toLowerCase(); // Normalize to lowercase for comparison
+                .replace(/^[a-zA-Z]:[\\\/]/, '')
+                .replace(/\\/g, '/')
+                .replace(/^\/+|\/+$/g, '')
+                .toLowerCase();
         }
 
         async function updateFilePath(oldPath, diskId) {
@@ -418,7 +415,7 @@
                     await window.firebase.updateDoc(docRef, { filePath: newPath });
                     console.log(`Updated path from ${oldPath} to ${newPath}`);
                     alert(`File path updated for "${newPath.split('/').pop()}".`);
-                    currentFiles = [...currentFiles, ...files]; // Update currentFiles to reflect new paths
+                    currentFiles = [...currentFiles, ...files];
                     await loadFiles();
                 } catch (error) {
                     console.error('Failed to update file path:', error);
@@ -696,7 +693,10 @@
                 const newFiles = [];
                 const existingFiles = new Set();
                 const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
-                snapshot.docs.forEach(doc => existingFiles.add(normalizePath(doc.data().filePath)));
+                const fileDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                fileDocs.forEach(file => existingFiles.add(normalizePath(file.filePath)));
+                console.log('Existing files in Firestore:', Array.from(existingFiles));
+
                 const nonArchivedFiles = [];
                 currentFiles.forEach((file, index) => {
                     const relativePath = normalizePath(file.webkitRelativePath);
@@ -707,19 +707,42 @@
                                 diskId: inputDiskId,
                                 metadata: {}
                             })
-                                .then(() => console.log('Added file:', relativePath))
+                                .then(() => console.log('Added new file:', relativePath))
                                 .catch(error => console.error('Error adding file:', relativePath, error));
                             newFiles.push(relativePath);
                         }
                         nonArchivedFiles.push({ filePath: relativePath, file });
                         progressFill.style.width = `${((index + 1) / currentFiles.length) * 100}%`;
+                    } else {
+                        console.log('Excluded file during scan:', relativePath);
                     }
                 });
 
                 const snapshot2 = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('metadata', '==', {})));
+                const untaggedFiles = snapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log('Untagged files in Firestore:', untaggedFiles.map(f => ({ filePath: f.filePath, metadata: f.metadata })));
+
                 const displayFiles = nonArchivedFiles
-                    .filter(f => snapshot2.docs.some(doc => normalizePath(doc.data().filePath) === f.filePath))
+                    .filter(f => untaggedFiles.some(doc => normalizePath(doc.filePath) === f.filePath))
                     .sort((a, b) => a.filePath.localeCompare(b.filePath, undefined, { sensitivity: 'base' }));
+
+                console.log('Files to display in Scanned Files tab:', displayFiles.map(f => f.filePath));
+
+                const problemFile = "chiriyude vazhi/chiriyude vazhi-ep-01-917-imx-06.mov";
+                const normalizedProblemFile = normalizePath(problemFile);
+                const problemFileDoc = fileDocs.find(doc => normalizePath(doc.filePath) === normalizedProblemFile);
+                if (problemFileDoc) {
+                    console.warn(`Problematic file "${problemFile}" found in Firestore:`, {
+                        filePath: problemFileDoc.filePath,
+                        metadata: problemFileDoc.metadata,
+                        isTagged: Object.keys(problemFileDoc.metadata).length > 0
+                    });
+                    if (Object.keys(problemFileDoc.metadata).length > 0) {
+                        console.warn(`File "${problemFile}" is tagged but appearing in Scanned Files. Metadata:`, problemFileDoc.metadata);
+                    }
+                } else {
+                    console.warn(`File "${problemFile}" not found in Firestore.`);
+                }
 
                 displayFiles.forEach(({ filePath, file }) => {
                     const row = document.createElement('tr');
@@ -950,7 +973,7 @@
             }
             try {
                 const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
-                console.log('Files fetched:', snapshot.size, snapshot.docs.map(doc => ({ filePath: doc.data().filePath, diskId: doc.data().diskId })));
+                console.log('Files fetched:', snapshot.size, snapshot.docs.map(doc => ({ filePath: doc.data().filePath, diskId: doc.data().diskId, metadata: doc.data().metadata })));
                 const files = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                 const tableBody = document.getElementById('fileTable');
                 tableBody.innerHTML = '';
@@ -997,6 +1020,21 @@
                     `;
                     tableBody.appendChild(row);
                 });
+
+                const problemFile = "chiriyude vazhi/chiriyude vazhi-ep-01-917-imx-06.mov";
+                const normalizedProblemFile = normalizePath(problemFile);
+                const problemFileData = files.find(f => normalizePath(f.filePath) === normalizedProblemFile);
+                if (problemFileData) {
+                    console.log(`Status of "${problemFile}":`, {
+                        filePath: problemFileData.filePath,
+                        diskId: problemFileData.diskId,
+                        metadata: problemFileData.metadata,
+                        isTagged: Object.keys(problemFileData.metadata).length > 0,
+                        isAccessible: currentFilePaths.includes(normalizedProblemFile)
+                    });
+                } else {
+                    console.log(`File "${problemFile}" not found in Firestore.`);
+                }
             } catch (error) {
                 console.error('Failed to load files:', error);
                 alert('Error loading files. Please check Firebase configuration and try again.');
