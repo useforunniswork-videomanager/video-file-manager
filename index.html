@@ -196,7 +196,7 @@
 
             <section id="results" class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
                 <h2 class="text-xl font-semibold text-gray-800 mb-3">Archived Files</h2>
-                <p class="text-gray-600 text-sm mb-3">View all files with metadata, sorted by programme and episode number. Use Disk ID to locate HDD. Green rows indicate accessible files; red rows indicate missing files (reselect folder).</p>
+                <p class="text-gray-600 text-sm mb-3">View all files with metadata, sorted by programme and episode number. Use Disk ID to locate HDD. Green rows indicate accessible files; red rows indicate missing files (reselect folder or update path).</p>
                 <div class="overflow-x-auto">
                     <table class="w-full border-collapse">
                         <thead>
@@ -214,7 +214,7 @@
         </main>
 
         <footer class="bg-teal-100 rounded-lg shadow-md mt-6 text-center text-gray-600 text-sm">
-            <p>Video File Manager v2.5 | Built for secure video organization with cloud sync | September 29, 2025</p>
+            <p>Video File Manager v2.6 | Built for secure video organization with cloud sync | September 29, 2025</p>
         </footer>
     </div>
 
@@ -378,8 +378,54 @@
         }
 
         function normalizePath(filePath) {
-            // Remove drive letter (e.g., 'D:/' or 'E:/') and normalize separators
-            return filePath.replace(/^[a-zA-Z]:[\\\/]/, '').replace(/\\/g, '/');
+            if (!filePath) return '';
+            // Remove drive letter, normalize separators, remove leading/trailing slashes, and convert to lowercase
+            return filePath
+                .replace(/^[a-zA-Z]:[\\\/]/, '') // Remove drive letter (e.g., D:/ or E:/)
+                .replace(/\\/g, '/') // Convert backslashes to forward slashes
+                .replace(/^\/+|\/+$/g, '') // Remove leading/trailing slashes
+                .toLowerCase(); // Normalize to lowercase for comparison
+        }
+
+        async function updateFilePath(oldPath, diskId) {
+            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.updateDoc || !window.firebase.doc || !window.firebase.collection) {
+                console.error('Firestore not initialized.');
+                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
+                return;
+            }
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.webkitdirectory = true;
+            fileInput.directory = true;
+            fileInput.multiple = true;
+            fileInput.onchange = async () => {
+                const files = Array.from(fileInput.files);
+                const normalizedOldPath = normalizePath(oldPath);
+                const matchingFile = files.find(f => normalizePath(f.webkitRelativePath) === normalizedOldPath);
+                if (!matchingFile) {
+                    alert('Selected folder does not contain the file. Please select the correct folder.');
+                    console.error(`No match found for ${normalizedOldPath} in selected files:`, files.map(f => normalizePath(f.webkitRelativePath)));
+                    return;
+                }
+                try {
+                    const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', oldPath)));
+                    if (snapshot.empty) {
+                        alert('File not found in Firestore.');
+                        return;
+                    }
+                    const docRef = snapshot.docs[0].ref;
+                    const newPath = normalizePath(matchingFile.webkitRelativePath);
+                    await window.firebase.updateDoc(docRef, { filePath: newPath });
+                    console.log(`Updated path from ${oldPath} to ${newPath}`);
+                    alert(`File path updated for "${newPath.split('/').pop()}".`);
+                    currentFiles = [...currentFiles, ...files]; // Update currentFiles to reflect new paths
+                    await loadFiles();
+                } catch (error) {
+                    console.error('Failed to update file path:', error);
+                    alert('Error updating file path. Please check Firebase configuration and try again.');
+                }
+            };
+            fileInput.click();
         }
 
         window.addEventListener('beforeunload', function(event) {
@@ -754,7 +800,7 @@
             }
 
             try {
-                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', normalizedPath)));
+                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', filePath)));
                 if (snapshot.empty) {
                     alert('File not found in Firestore.');
                     return;
@@ -834,7 +880,7 @@
 
             try {
                 const normalizedPath = normalizePath(filePath);
-                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', normalizedPath)));
+                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', filePath)));
                 if (snapshot.empty) {
                     alert('File not found!');
                     return;
@@ -877,10 +923,10 @@
                 alert(`Metadata saved for "${filePath.split('/').pop()}". Updated in 'Archived Files'.`);
                 const scannedTable = document.getElementById('scannedTable');
                 const rows = Array.from(scannedTable.querySelectorAll('tr'));
-                const currentRow = rows.find(row => row.dataset.filePath === filePath);
+                const currentRow = rows.find(row => normalizePath(row.dataset.filePath) === normalizedPath);
                 if (currentRow) currentRow.remove();
                 if (rows.length > 1) {
-                    const nextRow = rows.find(row => row.dataset.filePath !== filePath);
+                    const nextRow = rows.find(row => normalizePath(row.dataset.filePath) !== normalizedPath);
                     if (nextRow) {
                         const nextFilePath = nextRow.dataset.filePath;
                         await editMetadata(nextFilePath);
@@ -904,8 +950,8 @@
             }
             try {
                 const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
-                console.log('Files fetched:', snapshot.size, snapshot.docs.map(doc => doc.data()));
-                const files = snapshot.docs.map(doc => doc.data());
+                console.log('Files fetched:', snapshot.size, snapshot.docs.map(doc => ({ filePath: doc.data().filePath, diskId: doc.data().diskId })));
+                const files = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                 const tableBody = document.getElementById('fileTable');
                 tableBody.innerHTML = '';
 
@@ -922,24 +968,31 @@
                         return epA - epB;
                     });
 
+                const currentFilePaths = currentFiles.map(f => normalizePath(f.webkitRelativePath));
+                console.log('Current scanned file paths:', currentFilePaths);
+
                 filesWithMetadata.forEach(file => {
                     const normalizedPath = normalizePath(file.filePath);
                     const metadataStr = Object.entries(file.metadata)
                         .map(([k, v]) => `${k}: ${v}`)
                         .join('; ');
-                    const isAccessible = currentFiles.some(f => normalizePath(f.webkitRelativePath) === normalizedPath);
+                    const isAccessible = currentFilePaths.includes(normalizedPath);
+                    if (!isAccessible) {
+                        console.warn(`File marked offline: ${file.filePath} (normalized: ${normalizedPath}) not found in current files.`);
+                    }
                     const row = document.createElement('tr');
                     row.className = isAccessible ? 'bg-green-100' : 'bg-red-100';
-                    row.setAttribute('data-tooltip', isAccessible ? 'File accessible' : 'File not found, reselect folder');
+                    row.setAttribute('data-tooltip', isAccessible ? 'File accessible' : 'File not found, reselect folder or update path');
                     row.classList.add('tooltip');
                     row.innerHTML = `
-                        <td class="file-path-column p-3 border">${normalizedPath}</td>
+                        <td class="file-path-column p-3 border">${file.filePath}</td>
                         <td class="disk-id-column p-3 border">${file.diskId}</td>
                         <td class="metadata-column p-3 border">${metadataStr}</td>
                         <td class="actions-column p-3 border">
                             <button onclick="editMetadata('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata">Edit</button>
                             <button onclick="playVideoInSearch('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Play video">Play</button>
                             <button onclick="copyFile('${file.filePath.replace(/'/g, "\\'")}')" class="bg-gray-500 text-white p-1 rounded-lg hover:bg-gray-600 transition tooltip" data-tooltip="Copy file to destination">Copy</button>
+                            ${!isAccessible ? `<button onclick="updateFilePath('${file.filePath.replace(/'/g, "\\'")}', '${file.diskId.replace(/'/g, "\\'")}')" class="bg-yellow-500 text-white p-1 rounded-lg hover:bg-yellow-600 transition tooltip" data-tooltip="Update file path">Update Path</button>` : ''}
                         </td>
                     `;
                     tableBody.appendChild(row);
@@ -963,7 +1016,8 @@
                 showTab('metadataTab');
                 document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
             } else {
-                alert('Video file not found. Please reselect the folder containing this file.');
+                console.warn(`Cannot play video: ${filePath} (normalized: ${normalizedPath}) not found in current files.`);
+                alert('Video file not found. Please reselect the folder containing this file or update the file path.');
             }
         }
 
@@ -971,7 +1025,8 @@
             const normalizedPath = normalizePath(filePath);
             const file = currentFiles.find(f => normalizePath(f.webkitRelativePath) === normalizedPath);
             if (!file) {
-                alert('Video file not found. Please reselect the folder containing this file.');
+                console.warn(`Cannot copy file: ${filePath} (normalized: ${normalizedPath}) not found in current files.`);
+                alert('Video file not found. Please reselect the folder containing this file or update the file path.');
                 return;
             }
 
@@ -1061,29 +1116,34 @@
 
                 let alertMessage = files.length ? `Found ${files.length} file(s): ` : 'No files match your search.';
                 if (files.length) {
-                    const matches = files.map(file => `Disk ID: ${file.diskId}, Path: ${normalizePath(file.filePath)}`).join('; ');
+                    const matches = files.map(file => `Disk ID: ${file.diskId}, Path: ${file.filePath}`).join('; ');
                     alertMessage += matches;
                 }
                 alert(alertMessage);
 
+                const currentFilePaths = currentFiles.map(f => normalizePath(f.webkitRelativePath));
                 files.forEach(file => {
                     const normalizedPath = normalizePath(file.filePath);
                     const metadataStr = Object.entries(file.metadata)
                         .map(([k, v]) => `${k}: ${v}`)
                         .join('; ');
-                    const isAccessible = currentFiles.some(f => normalizePath(f.webkitRelativePath) === normalizedPath);
+                    const isAccessible = currentFilePaths.includes(normalizedPath);
+                    if (!isAccessible) {
+                        console.warn(`Search result marked offline: ${file.filePath} (normalized: ${normalizedPath}) not found in current files.`);
+                    }
                     const row = document.createElement('tr');
                     row.className = isAccessible ? 'bg-green-100' : 'bg-red-100';
-                    row.setAttribute('data-tooltip', isAccessible ? 'File accessible' : 'File not found, reselect folder');
+                    row.setAttribute('data-tooltip', isAccessible ? 'File accessible' : 'File not found, reselect folder or update path');
                     row.classList.add('tooltip');
                     row.innerHTML = `
-                        <td class="file-path-column p-3 border">${normalizedPath}</td>
+                        <td class="file-path-column p-3 border">${file.filePath}</td>
                         <td class="disk-id-column p-3 border">${file.diskId}</td>
                         <td class="metadata-column p-3 border">${metadataStr}</td>
                         <td class="actions-column p-3 border">
                             <button onclick="editMetadata('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata">Edit</button>
                             <button onclick="playVideoInSearch('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Play video">Play</button>
                             <button onclick="copyFile('${file.filePath.replace(/'/g, "\\'")}')" class="bg-gray-500 text-white p-1 rounded-lg hover:bg-gray-600 transition tooltip" data-tooltip="Copy file to destination">Copy</button>
+                            ${!isAccessible ? `<button onclick="updateFilePath('${file.filePath.replace(/'/g, "\\'")}', '${file.diskId.replace(/'/g, "\\'")}')" class="bg-yellow-500 text-white p-1 rounded-lg hover:bg-yellow-600 transition tooltip" data-tooltip="Update file path">Update Path</button>` : ''}
                         </td>
                     `;
                     tableBody.appendChild(row);
@@ -1115,7 +1175,7 @@
                 filesWithMetadata.forEach(file => {
                     const normalizedPath = normalizePath(file.filePath);
                     const row = [
-                        `"${normalizedPath.replace(/"/g, '""')}"`,
+                        `"${file.filePath.replace(/"/g, '""')}"`,
                         `"${file.diskId.replace(/"/g, '""')}"`,
                         ...headers.slice(2).map(key => {
                             const value = file.metadata[key] || '';
