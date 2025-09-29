@@ -271,7 +271,17 @@
             <p>Video File Manager v2.4 | Built for secure video organization with cloud sync | September 26, 2025</p>
         </footer>
     </div>
-
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  const firebaseConfig = { /* your config */ };
+  const app = initializeApp(firebaseConfig);
+  const firestore = getFirestore(app);
+  const auth = getAuth(app);
+  signInAnonymously(auth).catch(e => console.error('Auth error:', e));
+  window.firebase = { firestore, auth }; // Expose to global scope
+</script>
     <script>
         // Firebase Initialization
         const firebaseConfig = {
