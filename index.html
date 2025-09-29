@@ -51,7 +51,6 @@
     </div>
 
     <div id="mainApp" class="container min-h-screen hidden">
-        <!-- [Rest of the HTML remains unchanged: header, nav, main sections, footer, etc.] -->
         <header class="bg-teal-100 rounded-lg shadow-md mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center">Video File Manager</h1>
             <p class="text-center text-gray-600 text-sm mt-1">Organize, tag, and preview your video files with cloud sync!</p>
@@ -235,7 +234,7 @@
         };
 
         // Global promise to track Firebase initialization
-        let firebaseInitialized = null;
+        window.firebaseInitialized = null;
 
         async function initializeFirebase() {
             try {
@@ -267,6 +266,8 @@
             } catch (error) {
                 console.error('Firebase initialization failed:', error);
                 alert('Failed to initialize Firebase. Please check your Firebase configuration and reload the page.');
+                document.getElementById('loginButton').disabled = true;
+                document.getElementById('loginButton').textContent = 'Initialization Failed';
                 throw error;
             }
         }
@@ -291,10 +292,8 @@
         }
 
         // Start Firebase initialization and store the promise
-        firebaseInitialized = initializeFirebase().catch(error => {
+        window.firebaseInitialized = initializeFirebase().catch(error => {
             console.error('Initialization failed:', error);
-            document.getElementById('loginButton').disabled = true;
-            document.getElementById('loginButton').textContent = 'Initialization Failed';
         });
     </script>
 
@@ -306,17 +305,15 @@
                 return;
             }
 
-            // Wait for Firebase initialization to complete
             try {
-                await firebaseInitialized;
+                await window.firebaseInitialized;
                 if (!window.firebase || !window.firebase.firestore || !window.firebase.auth || !window.firebase.onAuthStateChanged) {
                     console.error('Firebase not initialized properly:', window.firebase);
                     alert('Firebase is not initialized. Please check Firebase configuration and reload the page.');
                     return;
                 }
 
-                // Attempt sign-in
-                await attemptSignIn(window.firebase.auth);
+                await window.firebase.signInAnonymously(window.firebase.auth);
 
                 window.firebase.onAuthStateChanged(window.firebase.auth, async user => {
                     if (user) {
@@ -356,7 +353,6 @@
             }
         }
 
-        // [Rest of the JavaScript remains unchanged: loadProgrammes, loadFiles, addProgramme, etc.]
         const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.wmv'];
         const EXCLUDE_PREFIXES = ['.', '$', '~'];
         const EXCLUDE_DIRS = ['/Windows', '/System32', '/dev', '/proc', '/sys', '/boot', '/etc'];
