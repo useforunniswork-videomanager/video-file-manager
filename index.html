@@ -1,207 +1,274 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Video File Manager</title>
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <style>
-    body { background: #f1f5f9; font-family: 'Inter', sans-serif; }
-    video { max-width: 100%; height: auto; }
-    .tab-content-section { display: none; }
-    .tab-content-section.active { display: block; }
-    .file-path-column { width: 40%; }
-    .disk-id-column { width: 20%; }
-    .metadata-column { width: 40%; }
-    .actions-column { width: 20%; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video File Manager</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        body {
+            background: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .card-custom {
+            border-radius: 1rem;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-content-section {
+            display: none;
+        }
+
+        .tab-content-section.active {
+            display: block;
+        }
+
+        .tab-button.active {
+            background-color: #14b8a6 !important;
+            color: #fff !important;
+            font-weight: 600;
+        }
+
+        .progress-bar-custom {
+            height: 4px;
+            background-color: #e5e7eb;
+            display: none;
+        }
+
+        .progress-bar-custom.active {
+            display: block;
+        }
+
+        .progress-bar-custom div {
+            height: 100%;
+            background: #2dd4bf;
+            transition: width 0.3s;
+        }
+
+        .tooltip-custom[data-tooltip]:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            background: #333;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            top: -30px;
+            white-space: nowrap;
+        }
+
+        table th {
+            background: #f0fdfa;
+            position: sticky;
+            top: 0;
+        }
+
+        table td,
+        table th {
+            padding: 0.75rem;
+            border: 1px solid #dee2e6;
+        }
+
+        .btn-teal {
+            background-color: #14b8a6;
+            color: #fff;
+        }
+
+        .btn-teal:hover {
+            background-color: #0d9488;
+            color: #fff;
+        }
+
+        .bg-teal-100 {
+            background-color: #ccfbf1;
+        }
+    </style>
 </head>
+
 <body class="min-vh-100">
 
-  <!-- Password Prompt -->
-  <div id="passwordPrompt" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75">
-    <div class="bg-white p-4 rounded shadow w-100" style="max-width: 400px;">
-      <h2 class="h4 mb-3 text-dark">Welcome!</h2>
-      <p class="text-muted mb-3">Enter password to access Video File Manager.</p>
-      <input type="password" id="passwordInput" class="form-control mb-3" placeholder="Password">
-      <button id="loginButton" onclick="checkPassword()" class="btn btn-primary w-100" disabled>Loading...</button>
+    <!-- Password Prompt -->
+    <div id="passwordPrompt"
+        class="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center">
+        <div class="card p-4 shadow-lg w-100" style="max-width:400px;">
+            <h2 class="h4 fw-bold text-dark mb-3">Welcome!</h2>
+            <p class="text-muted">Enter password to access Video File Manager.</p>
+            <input type="password" id="passwordInput" class="form-control mb-3" placeholder="Password">
+            <button id="loginButton" onclick="checkPassword()" class="btn btn-teal w-100" disabled>Loading...</button>
+        </div>
     </div>
-  </div>
 
-  <!-- Main App -->
-  <div id="mainApp" class="container py-4 d-none">
+    <!-- Main App -->
+    <div id="mainApp" class="container py-4 d-none">
 
-    <header class="bg-light rounded shadow-sm p-3 mb-4 text-center">
-      <h1 class="h3 fw-bold text-dark">Video File Manager</h1>
-      <p class="text-muted small">Organize, tag, and preview your video files with cloud sync!</p>
-    </header>
+        <!-- Header -->
+        <header class="card-custom bg-teal-100 text-center p-4 mb-4">
+            <h1 class="fw-bold text-dark">Video File Manager</h1>
+            <p class="text-muted small">Organize, tag, and preview your video files with cloud sync!</p>
+        </header>
 
-    <!-- Nav Tabs -->
-    <ul class="nav nav-tabs mb-4">
-      <li class="nav-item"><button class="nav-link active" onclick="showTab('programmesTab')">Programmes</button></li>
-      <li class="nav-item"><button class="nav-link" onclick="showTab('disksTab')">Disks</button></li>
-      <li class="nav-item"><button class="nav-link" onclick="showTab('scanTab')">Scan HDD</button></li>
-      <li class="nav-item"><button class="nav-link" onclick="showTab('scannedTab')">Scanned Files</button></li>
-      <li class="nav-item"><button class="nav-link" onclick="showTab('metadataTab')">Metadata</button></li>
-      <li class="nav-item"><button class="nav-link" onclick="showTab('searchTab')">Search</button></li>
-      <li class="nav-item"><button class="nav-link" onclick="showTab('exportTab')">Export</button></li>
-    </ul>
+        <!-- Navigation Tabs -->
+        <nav class="d-flex flex-wrap border-bottom mb-4">
+            <button class="btn flex-fill border-0 py-2 tab-button active"
+                onclick="showTab('programmesTab')">Programmes</button>
+            <button class="btn flex-fill border-0 py-2 tab-button" onclick="showTab('disksTab')">Disks</button>
+            <button class="btn flex-fill border-0 py-2 tab-button" onclick="showTab('scanTab')">Scan HDD</button>
+            <button class="btn flex-fill border-0 py-2 tab-button" onclick="showTab('scannedTab')">Scanned
+                Files</button>
+            <button class="btn flex-fill border-0 py-2 tab-button" onclick="showTab('metadataTab')">Metadata</button>
+            <button class="btn flex-fill border-0 py-2 tab-button" onclick="showTab('searchTab')">Search</button>
+            <button class="btn flex-fill border-0 py-2 tab-button" onclick="showTab('exportTab')">Export</button>
+        </nav>
 
-    <main class="mb-5">
+        <!-- Tab Contents -->
+        <main class="mb-5">
 
-      <!-- Programmes Tab -->
-      <section id="programmesTab" class="tab-content-section active card card-body mb-3">
-        <h2 class="h5">Manage Programme Names</h2>
-        <p class="text-muted small">Add, edit, or remove programme names for tagging.</p>
-        <div class="row g-2 mb-3">
-          <div class="col-sm-8"><input type="text" id="newProgramme" class="form-control" placeholder="Enter programme name"></div>
-          <div class="col-sm-4"><button onclick="addProgramme()" class="btn btn-primary w-100" data-bs-toggle="tooltip" title="Add a new programme">Add Programme</button></div>
-        </div>
-        <div id="programmeList" class="list-group"></div>
-        <p id="noProgrammesMessage" class="text-muted small mt-3 d-none">No programmes available. Add a programme above to start tagging files.</p>
-      </section>
+            <!-- Programmes -->
+            <section id="programmesTab" class="tab-content-section active card card-custom p-4 mb-4">
+                <h2 class="h5 fw-semibold text-dark mb-3">Manage Programme Names</h2>
+                <p class="text-muted small">Add, edit, or remove programme names for tagging.</p>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-8">
+                        <input type="text" id="newProgramme" class="form-control" placeholder="Enter programme name">
+                    </div>
+                    <div class="col-md-4">
+                        <button onclick="addProgramme()" class="btn btn-teal w-100">Add Programme</button>
+                    </div>
+                </div>
+                <div id="programmeList" class="d-grid gap-2"></div>
+                <p id="noProgrammesMessage" class="text-muted small d-none mt-2">No programmes available. Add a
+                    programme above to start tagging files.</p>
+            </section>
 
-      <!-- Disks Tab -->
-      <section id="disksTab" class="tab-content-section card card-body mb-3">
-        <h2 class="h5">Scanned Disks</h2>
-        <p class="text-muted small">View all scanned Disk IDs and rescan for new programmes.</p>
-        <div id="diskList" class="list-group"></div>
-      </section>
+            <!-- Disks -->
+            <section id="disksTab" class="tab-content-section card card-custom p-4 mb-4">
+                <h2 class="h5 fw-semibold text-dark mb-3">Scanned Disks</h2>
+                <p class="text-muted small">View all scanned Disk IDs and rescan for new programmes.</p>
+                <div id="diskList" class="d-grid gap-2"></div>
+            </section>
 
-      <!-- Scan HDD Tab -->
-      <section id="scanTab" class="tab-content-section card card-body mb-3">
-        <h2 class="h5">Select HDD and Scan</h2>
-        <p class="text-muted small">Choose a folder (including subfolders) and assign a Disk ID.</p>
-        <div class="row g-2 mb-3">
-          <div class="col-md"><input type="text" id="diskId" placeholder="Disk ID (e.g., 117-HD2TB)" class="form-control"></div>
-          <div class="col-md"><input type="file" id="diskFolder" webkitdirectory directory multiple class="form-control"></div>
-          <div class="col-md"><button onclick="scanDisk()" class="btn btn-primary w-100" data-bs-toggle="tooltip" title="Scan for video files">Scan Videos</button></div>
-        </div>
-        <div class="progress" id="scanProgress" style="display:none;">
-          <div id="progressFill" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
-        </div>
-      </section>
+            <!-- Scan HDD -->
+            <section id="scanTab" class="tab-content-section card card-custom p-4 mb-4">
+                <h2 class="h5 fw-semibold text-dark mb-3">Select HDD and Scan</h2>
+                <p class="text-muted small">Choose a folder (including subfolders) and assign a Disk ID.</p>
+                <div class="row g-2">
+                    <div class="col-md-4"><input type="text" id="diskId" class="form-control"
+                            placeholder="Disk ID (e.g., 117-HD2TB)"></div>
+                    <div class="col-md-5"><input type="file" id="diskFolder" webkitdirectory directory multiple
+                            class="form-control"></div>
+                    <div class="col-md-3"><button onclick="scanDisk()" class="btn btn-teal w-100">Scan Videos</button>
+                    </div>
+                </div>
+                <div class="progress-bar-custom mt-3" id="scanProgress">
+                    <div id="progressFill" class="w-0"></div>
+                </div>
+            </section>
 
-      <!-- Scanned Files Tab -->
-      <section id="scannedTab" class="tab-content-section card card-body mb-3">
-        <h2 class="h5">Scanned Video Files</h2>
-        <p class="text-muted small">View unarchived video files from selected folder and subfolders.</p>
-        <div class="table-responsive">
-          <table class="table table-bordered table-sm">
-            <thead class="table-light">
-              <tr>
-                <th class="file-path-column">Relative File Path</th>
-                <th class="actions-column">Action</th>
-              </tr>
-            </thead>
-            <tbody id="scannedTable"></tbody>
-          </table>
-        </div>
-      </section>
+            <!-- Scanned Files -->
+            <section id="scannedTab" class="tab-content-section card card-custom p-4 mb-4">
+                <h2 class="h5 fw-semibold text-dark mb-3">Scanned Video Files</h2>
+                <p class="text-muted small">View unarchived video files from folder/subfolders.</p>
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Relative File Path</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scannedTable"></tbody>
+                    </table>
+                </div>
+            </section>
 
-      <!-- Metadata Tab -->
-      <section id="metadataTab" class="tab-content-section card card-body mb-3">
-        <h2 class="h5">Manage Metadata</h2>
-        <p class="text-muted small">Add or edit metadata while previewing the video.</p>
-        <input type="text" id="metadataFilePath" class="form-control mb-3" placeholder="Selected relative file path" readonly>
+            <!-- Metadata -->
+            <section id="metadataTab" class="tab-content-section card card-custom p-4 mb-4">
+                <h2 class="h5 fw-semibold text-dark mb-3">Manage Metadata</h2>
+                <input type="text" id="metadataFilePath" class="form-control mb-3" placeholder="Selected file path"
+                    readonly>
+                <div class="row g-3">
+                    <div class="col-lg-6" id="metadataFields">
+                        <!-- Programme, Episode, Details, Telecast, Custom Fields -->
+                        <!-- Buttons: Save, Add Field -->
+                    </div>
+                    <div class="col-lg-6 d-none" id="videoPlayerContainer">
+                        <h5>Video Preview</h5>
+                        <video id="videoPlayer" controls class="w-100 border rounded"></video>
+                    </div>
+                </div>
+            </section>
 
-        <div class="row g-3">
-          <div class="col-lg-6">
+            <!-- Search -->
+            <section id="searchTab" class="tab-content-section card card-custom p-4 mb-4">
+                <h2 class="h5 fw-semibold text-dark mb-3">Search Files</h2>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-2"><input type="text" id="searchDiskId" class="form-control"
+                            placeholder="Disk ID"></div>
+                    <div class="col-md-2"><select id="searchProgramName" class="form-select">
+                            <option>All Programmes</option>
+                        </select></div>
+                    <div class="col-md-2"><input type="number" id="searchEpisodeNumber" class="form-control"
+                            placeholder="Episode #"></div>
+                    <div class="col-md-2"><input type="date" id="searchTelecastDate" class="form-control"></div>
+                    <div class="col-md-2"><input type="text" id="searchMetadata" class="form-control"
+                            placeholder="Metadata"></div>
+                    <div class="col-md-2"><select id="searchLogic" class="form-select">
+                            <option value="AND">AND</option>
+                            <option value="OR">OR</option>
+                        </select></div>
+                </div>
+                <button onclick="searchFiles()" class="btn btn-teal">Search</button>
+            </section>
 
-            <div class="mb-3">
-              <label class="form-label">Name of Programme</label>
-              <select id="programName" onchange="toggleOtherProgrammeInput(this)" class="form-select">
-                <option value="">Select a programme</option>
-              </select>
-              <input type="text" id="otherProgramme" placeholder="Enter new programme" class="form-control mt-2 d-none">
-            </div>
+            <!-- Export -->
+            <section id="exportTab" class="tab-content-section card card-custom p-4 mb-4">
+                <h2 class="h5 fw-semibold text-dark mb-3">Export and Backup</h2>
+                <div class="row g-2">
+                    <div class="col-md-6"><button onclick="exportReport()" class="btn btn-teal w-100">Export as
+                            CSV</button></div>
+                    <div class="col-md-6"><button onclick="backupData()" class="btn btn-primary w-100">Backup
+                            Data</button></div>
+                    <div class="col-md-8"><input type="file" id="restoreInput" accept=".json" class="form-control">
+                    </div>
+                    <div class="col-md-4"><button onclick="restoreData()" class="btn btn-success w-100">Restore</button>
+                    </div>
+                </div>
+            </section>
 
-            <div class="mb-3">
-              <label class="form-label">Episode Number</label>
-              <input type="number" id="episodeNumber" placeholder="e.g., 1" class="form-control">
-            </div>
+            <!-- Results -->
+            <section id="results" class="card card-custom p-4">
+                <h2 class="h5 fw-semibold text-dark mb-3">Archived Files</h2>
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>File Path</th>
+                                <th>Disk ID</th>
+                                <th>Metadata</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTable"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
 
-            <div class="mb-3">
-              <label class="form-label">Episode Details</label>
-              <textarea id="episodeDetails" rows="4" class="form-control" placeholder="Episode details"></textarea>
-              <button onclick="checkGrammar()" class="btn btn-warning btn-sm mt-2">Check Grammar</button>
-              <div id="grammarSuggestions" class="small text-muted mt-2 d-none"></div>
-            </div>
+        <!-- Footer -->
+        <footer class="text-center text-muted small mt-4 py-3 card-custom bg-teal-100">
+            <p>Video File Manager v2.6 | Built for secure video organization with cloud sync | September 29, 2025</p>
+        </footer>
+    </div>
 
-            <div class="mb-3">
-              <label class="form-label">Telecast Date</label>
-              <input type="date" id="telecastDate" class="form-control">
-            </div>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-            <div id="customFields"></div>
-
-            <div class="d-flex gap-2">
-              <button onclick="addCustomField()" class="btn btn-primary btn-sm">Add Custom Field</button>
-              <button onclick="saveMetadata()" class="btn btn-success btn-sm">Save Metadata</button>
-            </div>
-
-          </div>
-
-          <div class="col-lg-6">
-            <h6>Video Preview</h6>
-            <video id="videoPlayer" controls class="border rounded w-100 d-none"></video>
-          </div>
-        </div>
-      </section>
-
-      <!-- Search Tab -->
-      <section id="searchTab" class="tab-content-section card card-body mb-3">
-        <h2 class="h5">Search Files</h2>
-        <p class="text-muted small">Find archived files by Disk ID, programme, or metadata.</p>
-        <div class="row g-2 mb-3">
-          <div class="col"><input type="text" id="searchDiskId" placeholder="Disk ID" class="form-control"></div>
-          <div class="col"><select id="searchProgramName" class="form-select"><option value="">All Programmes</option></select></div>
-          <div class="col"><input type="number" id="searchEpisodeNumber" placeholder="Episode #" class="form-control"></div>
-          <div class="col"><input type="date" id="searchTelecastDate" class="form-control"></div>
-          <div class="col"><input type="text" id="searchMetadata" placeholder="Metadata" class="form-control"></div>
-          <div class="col"><select id="searchLogic" class="form-select"><option value="AND">AND</option><option value="OR">OR</option></select></div>
-        </div>
-        <button onclick="searchFiles()" class="btn btn-primary">Search Files</button>
-      </section>
-
-      <!-- Export Tab -->
-      <section id="exportTab" class="tab-content-section card card-body mb-3">
-        <h2 class="h5">Export and Backup</h2>
-        <div class="row g-2">
-          <div class="col-md-4"><button onclick="exportReport()" class="btn btn-primary w-100">Export CSV</button></div>
-          <div class="col-md-4"><button onclick="backupData()" class="btn btn-info text-white w-100">Backup JSON</button></div>
-          <div class="col-md-4"><input type="file" id="restoreInput" accept=".json" class="form-control"></div>
-          <div class="col-md-4"><button onclick="restoreData()" class="btn btn-success w-100">Restore Data</button></div>
-        </div>
-      </section>
-
-      <!-- Results -->
-      <section id="results" class="card card-body">
-        <h2 class="h5">Archived Files</h2>
-        <p class="text-muted small">View all files with metadata. Green = accessible, Red = missing.</p>
-        <div class="table-responsive">
-          <table class="table table-bordered table-sm">
-            <thead class="table-light">
-              <tr>
-                <th class="file-path-column">Relative File Path</th>
-                <th class="disk-id-column">Disk ID</th>
-                <th class="metadata-column">Metadata</th>
-                <th class="actions-column">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="fileTable"></tbody>
-          </table>
-        </div>
-      </section>
-
-    </main>
-
-    <footer class="bg-light rounded p-2 text-center small text-muted mt-4">
-      Video File Manager v2.6 | Built for secure video organization with cloud sync | September 29, 2025
-    </footer>
-  </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -410,7 +477,7 @@
             fileInput.click();
         }
 
-        window.addEventListener('beforeunload', function(event) {
+        window.addEventListener('beforeunload', function (event) {
             event.preventDefault();
             event.returnValue = 'Would you like to back up your data before closing? Go to the Export tab and click "Backup Data" to save as JSON.';
         });
@@ -1055,7 +1122,7 @@
 
             const copyDestination = document.getElementById('copyDestination');
             copyDestination.value = '';
-            copyDestination.onchange = function() {
+            copyDestination.onchange = function () {
                 const destinationPath = copyDestination.files.length ? copyDestination.files[0].webkitRelativePath.split('/')[0] : '';
                 if (!destinationPath) {
                     alert('Please select a destination folder.');
@@ -1114,14 +1181,14 @@
                     const dateMatch = !telecastDate || (file.metadata['Telecast Date'] && file.metadata['Telecast Date'] === telecastDate);
                     if (searchLogic === 'AND') {
                         return (diskId ? diskMatch : true) &&
-                               (programName ? programMatch : true) &&
-                               (episodeNumber ? episodeMatch : true) &&
-                               (telecastDate ? dateMatch : true);
+                            (programName ? programMatch : true) &&
+                            (episodeNumber ? episodeMatch : true) &&
+                            (telecastDate ? dateMatch : true);
                     } else {
                         return (diskId && diskMatch) ||
-                               (programName && programMatch) ||
-                               (episodeNumber && episodeMatch) ||
-                               (telecastDate && dateMatch);
+                            (programName && programMatch) ||
+                            (episodeNumber && episodeMatch) ||
+                            (telecastDate && dateMatch);
                     }
                 }).sort((a, b) => {
                     const progA = a.metadata['Name of Programme'] || '';
@@ -1266,7 +1333,7 @@
 
             const file = restoreInput.files[0];
             const reader = new FileReader();
-            reader.onload = async function(event) {
+            reader.onload = async function (event) {
                 try {
                     const data = JSON.parse(event.target.result);
                     const batch = window.firebase.writeBatch(window.firebase.firestore);
@@ -1330,4 +1397,5 @@
         }
     </script>
 </body>
+
 </html>
