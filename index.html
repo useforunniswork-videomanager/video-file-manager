@@ -4,108 +4,123 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video File Manager</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { background: #f1f5f9; font-family: 'Inter', sans-serif; }
-        .tooltip { position: relative; }
-        .tooltip:hover::after {
+        .tooltip-custom { position: relative; }
+        .tooltip-custom:hover::after {
             content: attr(data-tooltip);
-            @apply absolute z-10 bg-gray-800 text-white text-xs rounded p-2 -mt-8;
+            position: absolute;
+            z-index: 10;
+            background: #212529;
+            color: white;
+            font-size: 0.75rem;
+            border-radius: 0.25rem;
+            padding: 0.5rem;
+            margin-top: -2rem;
         }
-        .progress-bar { display: none; width: 100%; height: 3px; background: #e5e7eb; }
-        .progress-bar.active { display: block; }
-        .progress-bar div { height: 100%; background: #2dd4bf; transition: width 0.3s; }
+        .progress-bar-custom { display: none; width: 100%; height: 3px; background: #e5e7eb; }
+        .progress-bar-custom.active { display: block; }
+        .progress-bar-custom div { height: 100%; background: #20c997; transition: width 0.3s; }
         video { max-width: 100%; height: auto; }
-        .tab-button.active { @apply bg-teal-500 text-white border-b-2 border-teal-600 font-semibold; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        table { @apply w-full text-sm table-auto; }
-        th { @apply sticky top-0 bg-teal-50 font-semibold p-3; }
-        td { @apply p-3 border; }
-        select, input[type="date"], input[type="number"], textarea, input[type="text"] {
-            @apply p-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-teal-300;
-        }
+        .nav-tabs .nav-link.active { background-color: #20c997; color: white; border-bottom: 2px solid #1aa179; font-weight: 600; }
+        .tab-content > .tab-pane { display: none; }
+        .tab-content > .active { display: block; }
+        th { position: sticky; top: 0; background-color: #d1f2eb; font-weight: 600; }
         textarea { resize: vertical; min-height: 80px; }
-        .container { @apply max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8; }
-        section { @apply mb-6; }
-        header, footer { @apply py-3; }
-        .file-path-column { @apply w-2/5; }
-        .disk-id-column { @apply w-1/5; }
-        .metadata-column { @apply w-2/5; }
-        .actions-column { @apply w-1/5; }
-        @media (max-width: 640px) {
-            .file-path-column, .metadata-column { @apply w-full; }
-            .disk-id-column, .actions-column { @apply w-1/4; }
-        }
     </style>
 </head>
-<body class="min-h-screen">
-    <div id="passwordPrompt" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center">
-        <div class="bg-white p-6 rounded-lg shadow-md max-w-md w-full">
-            <h2 class="text-xl font-semibold mb-4 text-gray-800">Welcome!</h2>
-            <p class="text-gray-600 mb-4">Enter password to access Video File Manager.</p>
-            <input type="password" id="passwordInput" class="p-2 border rounded-lg w-full mb-4 focus:outline-none focus:ring-2 focus:ring-teal-300" placeholder="Password">
-            <button id="loginButton" onclick="checkPassword()" class="bg-teal-500 text-white p-2 rounded-lg w-full hover:bg-teal-600 transition" disabled>Loading...</button>
+<body class="min-vh-100">
+    <div id="passwordPrompt" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-center" style="background: rgba(33, 37, 41, 0.75); z-index: 9999;">
+        <div class="bg-white p-4 rounded shadow" style="max-width: 28rem; width: 100%;">
+            <h2 class="fs-4 fw-semibold mb-3 text-dark">Welcome!</h2>
+            <p class="text-secondary mb-3">Enter password to access Video File Manager.</p>
+            <input type="password" id="passwordInput" class="form-control mb-3" placeholder="Password">
+            <button id="loginButton" onclick="checkPassword()" class="btn btn-success w-100" disabled>Loading...</button>
         </div>
     </div>
 
-    <div id="mainApp" class="container min-h-screen hidden">
-        <header class="bg-teal-100 rounded-lg shadow-md mb-6">
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center">Video File Manager</h1>
-            <p class="text-center text-gray-600 text-sm mt-1">Organize, tag, and preview your video files with cloud sync!</p>
+    <div id="mainApp" class="container-fluid min-vh-100 d-none">
+        <header class="bg-info bg-opacity-25 rounded shadow-sm mb-4 p-3">
+            <h1 class="fs-2 fw-bold text-dark text-center">Video File Manager</h1>
+            <p class="text-center text-secondary small mt-1">Organize, tag, and preview your video files with cloud sync!</p>
         </header>
 
-        <nav class="flex flex-wrap border-b-2 border-gray-200 mb-6">
-            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition active" onclick="showTab('programmesTab')">Programmes</button>
-            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('disksTab')">Disks</button>
-            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('scanTab')">Scan HDD</button>
-            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('scannedTab')">Scanned Files</button>
-            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('metadataTab')">Metadata</button>
-            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('searchTab')">Search</button>
-            <button class="tab-button flex-1 p-3 text-center text-gray-700 hover:bg-teal-100 transition" onclick="showTab('exportTab')">Export</button>
-        </nav>
+        <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#programmesTab" type="button">Programmes</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#disksTab" type="button">Disks</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#scanTab" type="button">Scan HDD</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#scannedTab" type="button">Scanned Files</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#metadataTab" type="button">Metadata</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#searchTab" type="button">Search</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#exportTab" type="button">Export</button>
+            </li>
+        </ul>
 
-        <main class="space-y-6">
-            <section id="programmesTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md active">
-                <h2 class="text-xl font-semibold text-gray-800 mb-3">Manage Programme Names</h2>
-                <p class="text-gray-600 text-sm mb-3">Add, edit, or remove programme names for tagging.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                    <input type="text" id="newProgramme" placeholder="Enter programme name" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
-                    <button onclick="addProgramme()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Add a new programme">Add Programme</button>
+        <main class="tab-content" id="mainTabContent">
+            <section id="programmesTab" class="tab-pane fade show active bg-white p-4 rounded shadow-sm">
+                <h2 class="fs-4 fw-semibold text-dark mb-3">Manage Programme Names</h2>
+                <p class="text-secondary small mb-3">Add, edit, or remove programme names for tagging.</p>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-8">
+                        <input type="text" id="newProgramme" class="form-control" placeholder="Enter programme name">
+                    </div>
+                    <div class="col-md-4">
+                        <button onclick="addProgramme()" class="btn btn-success w-100">Add Programme</button>
+                    </div>
                 </div>
-                <div id="programmeList" class="grid grid-cols-1 gap-3"></div>
-                <p id="noProgrammesMessage" class="text-gray-600 text-sm mt-3 hidden">No programmes available. Add a programme above to start tagging files.</p>
+                <div id="programmeList" class="d-flex flex-column gap-3"></div>
+                <p id="noProgrammesMessage" class="text-secondary small mt-3 d-none">No programmes available. Add a programme above to start tagging files.</p>
             </section>
 
-            <section id="disksTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-800 mb-3">Scanned Disks</h2>
-                <p class="text-gray-600 text-sm mb-3">View all scanned Disk IDs and rescan for new programmes.</p>
-                <div id="diskList" class="grid grid-cols-1 gap-3"></div>
+            <section id="disksTab" class="tab-pane fade bg-white p-4 rounded shadow-sm">
+                <h2 class="fs-4 fw-semibold text-dark mb-3">Scanned Disks</h2>
+                <p class="text-secondary small mb-3">View all scanned Disk IDs and rescan for new programmes.</p>
+                <div id="diskList" class="d-flex flex-column gap-3"></div>
             </section>
 
-            <section id="scanTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-800 mb-3">Select HDD and Scan</h2>
-                <p class="text-gray-600 text-sm mb-3">Choose a folder (including subfolders) and assign a Disk ID.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <input type="text" id="diskId" placeholder="Disk ID (e.g., 117-HD2TB)" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
-                    <input type="file" id="diskFolder" webkitdirectory directory multiple class="p-2 border rounded-lg">
-                    <button onclick="scanDisk()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Scan for video files in folder and subfolders">Scan Videos</button>
+            <section id="scanTab" class="tab-pane fade bg-white p-4 rounded shadow-sm">
+                <h2 class="fs-4 fw-semibold text-dark mb-3">Select HDD and Scan</h2>
+                <p class="text-secondary small mb-3">Choose a folder (including subfolders) and assign a Disk ID.</p>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <input type="text" id="diskId" class="form-control" placeholder="Disk ID (e.g., 117-HD2TB)">
+                    </div>
+                    <div class="col-md-4">
+                        <input type="file" id="diskFolder" webkitdirectory directory multiple class="form-control">
+                    </div>
+                    <div class="col-md-4">
+                        <button onclick="scanDisk()" class="btn btn-success w-100">Scan Videos</button>
+                    </div>
                 </div>
-                <div class="progress-bar mt-4" id="scanProgress">
-                    <div id="progressFill" class="w-0"></div>
+                <div class="progress-bar-custom mt-4" id="scanProgress">
+                    <div id="progressFill" style="width: 0%;"></div>
                 </div>
             </section>
 
-            <section id="scannedTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-800 mb-3">Scanned Video Files</h2>
-                <p class="text-gray-600 text-sm mb-3">View unarchived video files from selected folder and subfolders, sorted alphabetically.</p>
-                <div class="overflow-x-auto">
-                    <table class="w-full border-collapse mb-3">
-                        <thead>
-                            <tr class="bg-teal-50">
-                                <th class="file-path-column p-3 border text-left">Relative File Path</th>
-                                <th class="actions-column p-3 border text-left">Action</th>
+            <section id="scannedTab" class="tab-pane fade bg-white p-4 rounded shadow-sm">
+                <h2 class="fs-4 fw-semibold text-dark mb-3">Scanned Video Files</h2>
+                <p class="text-secondary small mb-3">View unarchived video files from selected folder and subfolders, sorted alphabetically.</p>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover mb-3">
+                        <thead class="table-success">
+                            <tr>
+                                <th class="w-75">Relative File Path</th>
+                                <th class="w-25">Action</th>
                             </tr>
                         </thead>
                         <tbody id="scannedTable"></tbody>
@@ -113,98 +128,114 @@
                 </div>
             </section>
 
-            <section id="metadataTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-800 mb-3">Manage Metadata</h2>
-                <p class="text-gray-600 text-sm mb-3">Add or edit metadata while previewing the video. Episode Details are auto-corrected to sentence case on save.</p>
-                <input type="text" id="metadataFilePath" placeholder="Selected relative file path" class="p-2 border rounded-lg mb-4 w-full" readonly>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div id="metadataFields" class="grid grid-cols-1 gap-4">
-                        <div class="flex flex-col sm:flex-row gap-3 items-start">
-                            <label class="w-full sm:w-1/3 text-gray-700 text-sm pt-2">Name of Programme</label>
-                            <div class="flex-1">
-                                <select id="programName" onchange="toggleOtherProgrammeInput(this)" class="p-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-teal-300">
-                                    <option value="">Select a programme</option>
-                                </select>
-                                <input type="text" id="otherProgramme" placeholder="Enter new programme" class="p-2 border rounded-lg w-full mt-2 hidden focus:outline-none focus:ring-2 focus:ring-teal-300">
+            <section id="metadataTab" class="tab-pane fade bg-white p-4 rounded shadow-sm">
+                <h2 class="fs-4 fw-semibold text-dark mb-3">Manage Metadata</h2>
+                <p class="text-secondary small mb-3">Add or edit metadata while previewing the video. Episode Details are auto-corrected to sentence case on save.</p>
+                <input type="text" id="metadataFilePath" class="form-control mb-4" placeholder="Selected relative file path" readonly>
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="mb-3">
+                            <label class="form-label">Name of Programme</label>
+                            <select id="programName" onchange="toggleOtherProgrammeInput(this)" class="form-select">
+                                <option value="">Select a programme</option>
+                            </select>
+                            <input type="text" id="otherProgramme" placeholder="Enter new programme" class="form-control mt-2 d-none">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Episode Number</label>
+                            <input type="number" id="episodeNumber" placeholder="e.g., 1" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Episode Details</label>
+                            <textarea id="episodeDetails" placeholder="e.g., Episode 1, 30min, Drama, Directed by John Doe" rows="4" class="form-control"></textarea>
+                            <button onclick="checkGrammar()" class="btn btn-warning mt-2">Check Grammar</button>
+                            <div id="grammarSuggestions" class="text-secondary small mt-2 d-none"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Telecast Date</label>
+                            <input type="date" id="telecastDate" class="form-control">
+                        </div>
+                        <div id="customFields" class="d-flex flex-column gap-3 mb-3">
+                            <div class="d-flex gap-2">
+                                <input type="text" placeholder="Custom Field Name" class="form-control" data-key>
+                                <input type="text" placeholder="Value" class="form-control" data-value>
+                                <button onclick="removeCustomField(this)" class="btn btn-danger">Remove</button>
                             </div>
                         </div>
-                        <div class="flex flex-col sm:flex-row gap-3 items-start">
-                            <label class="w-full sm:w-1/3 text-gray-700 text-sm pt-2">Episode Number</label>
-                            <input type="number" id="episodeNumber" placeholder="e.g., 1" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300">
-                        </div>
-                        <div class="flex flex-col sm:flex-row gap-3 items-start">
-                            <label class="w-full sm:w-1/3 text-gray-700 text-sm pt-2">Episode Details</label>
-                            <div class="flex-1">
-                                <textarea id="episodeDetails" placeholder="e.g., Episode 1, 30min, Drama, Directed by John Doe" rows="4" class="p-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-teal-300"></textarea>
-                                <button onclick="checkGrammar()" class="bg-yellow-500 text-white p-2 rounded-lg mt-2 hover:bg-yellow-600 transition tooltip" data-tooltip="Check grammar for Episode Details">Check Grammar</button>
-                                <div id="grammarSuggestions" class="text-sm text-gray-600 mt-2 hidden"></div>
-                            </div>
-                        </div>
-                        <div class="flex flex-col sm:flex-row gap-3 items-start">
-                            <label class="w-full sm:w-1/3 text-gray-700 text-sm pt-2">Telecast Date</label>
-                            <input type="date" id="telecastDate" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300">
-                        </div>
-                        <div id="customFields" class="grid grid-cols-1 gap-3">
-                            <div class="flex flex-col sm:flex-row gap-3">
-                                <input type="text" placeholder="Custom Field Name" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-key>
-                                <input type="text" placeholder="Value" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-value>
-                                <button onclick="removeCustomField(this)" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Remove this field">Remove</button>
-                            </div>
-                        </div>
-                        <div class="flex gap-4 mt-3">
-                            <button onclick="addCustomField()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Add custom metadata field">Add Custom Field</button>
-                            <button onclick="saveMetadata()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Save metadata">Save Metadata</button>
+                        <div class="d-flex gap-2">
+                            <button onclick="addCustomField()" class="btn btn-success">Add Custom Field</button>
+                            <button onclick="saveMetadata()" class="btn btn-primary">Save Metadata</button>
                         </div>
                     </div>
-                    <div id="videoPlayerContainer" class="hidden">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Video Preview</h3>
-                        <video id="videoPlayer" controls class="border rounded-lg shadow-sm w-full" width="100%"></video>
+                    <div class="col-lg-6" id="videoPlayerContainer" style="display: none;">
+                        <h3 class="fs-5 fw-semibold text-dark mb-2">Video Preview</h3>
+                        <video id="videoPlayer" controls class="border rounded shadow-sm w-100"></video>
                     </div>
                 </div>
             </section>
 
-            <section id="searchTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-800 mb-3">Search Files</h2>
-                <p class="text-gray-600 text-sm mb-3">Find archived files by Disk ID, programme name, episode number, telecast date, or other metadata (e.g., details). Use AND (all criteria must match) or OR (any criterion matches). Results are sorted by programme and episode number.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-4">
-                    <input type="text" id="searchDiskId" placeholder="Search Disk ID (e.g., 117-HD2TB)" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
-                    <select id="searchProgramName" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
-                        <option value="">All Programmes</option>
-                    </select>
-                    <input type="number" id="searchEpisodeNumber" placeholder="Episode Number (e.g., 1)" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
-                    <input type="date" id="searchTelecastDate" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
-                    <input type="text" id="searchMetadata" placeholder="Search Metadata (e.g., Drama, Sci-Fi)" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
-                    <select id="searchLogic" class="p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-300">
-                        <option value="AND">AND (all criteria)</option>
-                        <option value="OR">OR (any criterion)</option>
-                    </select>
+            <section id="searchTab" class="tab-pane fade bg-white p-4 rounded shadow-sm">
+                <h2 class="fs-4 fw-semibold text-dark mb-3">Search Files</h2>
+                <p class="text-secondary small mb-3">Find archived files by Disk ID, programme name, episode number, telecast date, or other metadata (e.g., details). Use AND (all criteria must match) or OR (any criterion matches). Results are sorted by programme and episode number.</p>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <input type="text" id="searchDiskId" class="form-control" placeholder="Search Disk ID (e.g., 117-HD2TB)">
+                    </div>
+                    <div class="col-md-2">
+                        <select id="searchProgramName" class="form-select">
+                            <option value="">All Programmes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" id="searchEpisodeNumber" class="form-control" placeholder="Episode Number (e.g., 1)">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" id="searchTelecastDate" class="form-control">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" id="searchMetadata" class="form-control" placeholder="Search Metadata (e.g., Drama, Sci-Fi)">
+                    </div>
+                    <div class="col-md-1">
+                        <select id="searchLogic" class="form-select">
+                            <option value="AND">AND</option>
+                            <option value="OR">OR</option>
+                        </select>
+                    </div>
                 </div>
-                <button onclick="searchFiles()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Search for files">Search Files</button>
-                <input type="file" id="copyDestination" webkitdirectory directory class="hidden">
+                <button onclick="searchFiles()" class="btn btn-success">Search Files</button>
+                <input type="file" id="copyDestination" webkitdirectory directory class="d-none">
             </section>
 
-            <section id="exportTab" class="tab-content bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-800 mb-3">Export and Backup</h2>
-                <p class="text-gray-600 text-sm mb-3">Export metadata as CSV, backup data as JSON, or restore from JSON.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                    <button onclick="exportReport()" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Export metadata to CSV">Export as CSV</button>
-                    <button onclick="backupData()" class="bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 transition tooltip" data-tooltip="Backup all data to JSON">Backup Data</button>
-                    <input type="file" id="restoreInput" accept=".json" class="p-2 border rounded-lg">
-                    <button onclick="restoreData()" class="bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 transition tooltip" data-tooltip="Restore data from JSON file">Restore Data</button>
+            <section id="exportTab" class="tab-pane fade bg-white p-4 rounded shadow-sm">
+                <h2 class="fs-4 fw-semibold text-dark mb-3">Export and Backup</h2>
+                <p class="text-secondary small mb-3">Export metadata as CSV, backup data as JSON, or restore from JSON.</p>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <button onclick="exportReport()" class="btn btn-success w-100">Export as CSV</button>
+                    </div>
+                    <div class="col-md-6">
+                        <button onclick="backupData()" class="btn btn-primary w-100">Backup Data</button>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="file" id="restoreInput" accept=".json" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <button onclick="restoreData()" class="btn btn-success w-100">Restore Data</button>
+                    </div>
                 </div>
             </section>
 
-            <section id="results" class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-800 mb-3">Archived Files</h2>
-                <p class="text-gray-600 text-sm mb-3">View all files with metadata, sorted by programme and episode number. Use Disk ID to locate HDD. Green rows indicate accessible files; red rows indicate missing files (reselect folder or update path).</p>
-                <div class="overflow-x-auto">
-                    <table class="w-full border-collapse">
-                        <thead>
-                            <tr class="bg-teal-50">
-                                <th class="file-path-column p-3 border text-left">Relative File Path</th>
-                                <th class="disk-id-column p-3 border text-left">Disk ID</th>
-                                <th class="metadata-column p-3 border text-left">Metadata</th>
-                                <th class="actions-column p-3 border text-left">Actions</th>
+            <section id="results" class="bg-white p-4 rounded shadow-sm mt-4">
+                <h2 class="fs-4 fw-semibold text-dark mb-3">Archived Files</h2>
+                <p class="text-secondary small mb-3">View all files with metadata, sorted by programme and episode number. Use Disk ID to locate HDD. Green rows indicate accessible files; red rows indicate missing files (reselect folder or update path).</p>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-success">
+                            <tr>
+                                <th style="width: 35%;">Relative File Path</th>
+                                <th style="width: 15%;">Disk ID</th>
+                                <th style="width: 35%;">Metadata</th>
+                                <th style="width: 15%;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="fileTable"></tbody>
@@ -213,11 +244,12 @@
             </section>
         </main>
 
-        <footer class="bg-teal-100 rounded-lg shadow-md mt-6 text-center text-gray-600 text-sm">
-            <p>Video File Manager v2.6 | Built for secure video organization with cloud sync | September 29, 2025</p>
+        <footer class="bg-info bg-opacity-25 rounded shadow-sm mt-4 text-center text-secondary small p-3">
+            <p class="mb-0">Video File Manager v2.6 | Built for secure video organization with cloud sync | September 29, 2025</p>
         </footer>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -241,21 +273,7 @@
                 const firestore = getFirestore(app);
                 const auth = getAuth(app);
                 window.firebase = {
-                    app,
-                    firestore,
-                    collection,
-                    getDocs,
-                    doc,
-                    setDoc,
-                    updateDoc,
-                    deleteDoc,
-                    onSnapshot,
-                    query,
-                    where,
-                    writeBatch,
-                    auth,
-                    signInAnonymously,
-                    onAuthStateChanged
+                    app, firestore, collection, getDocs, doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch, auth, signInAnonymously, onAuthStateChanged
                 };
                 console.log('Firebase initialized successfully:', firebaseConfig.projectId);
                 document.getElementById('loginButton').disabled = false;
@@ -315,8 +333,8 @@
                 window.firebase.onAuthStateChanged(window.firebase.auth, async user => {
                     if (user) {
                         console.log('User authenticated:', user.uid);
-                        document.getElementById('passwordPrompt').classList.add('hidden');
-                        document.getElementById('mainApp').classList.remove('hidden');
+                        document.getElementById('passwordPrompt').classList.add('d-none');
+                        document.getElementById('mainApp').classList.remove('d-none');
 
                         try {
                             const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes'));
@@ -430,13 +448,6 @@
             event.returnValue = 'Would you like to back up your data before closing? Go to the Export tab and click "Backup Data" to save as JSON.';
         });
 
-        function showTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            document.querySelector(`button[onclick="showTab('${tabId}')"]`).classList.add('active');
-        }
-
         function toSentenceCase(text) {
             if (!text) return text;
             return text
@@ -453,12 +464,12 @@
         function checkGrammar() {
             const episodeDetails = document.getElementById('episodeDetails').value.trim();
             const suggestionsDiv = document.getElementById('grammarSuggestions');
-            suggestionsDiv.classList.add('hidden');
+            suggestionsDiv.classList.add('d-none');
             suggestionsDiv.innerHTML = '';
 
             if (!episodeDetails) {
                 suggestionsDiv.innerHTML = 'No text to check.';
-                suggestionsDiv.classList.remove('hidden');
+                suggestionsDiv.classList.remove('d-none');
                 return;
             }
 
@@ -493,10 +504,10 @@
             if (suggestions.length === 0) {
                 suggestionsDiv.innerHTML = 'No grammar issues found.';
             } else {
-                suggestionsDiv.innerHTML = '<p class="font-semibold">Grammar Suggestions:</p><ul class="list-disc pl-5">' +
-                    suggestions.map(s => `<li>${s}</li>`).join('') + '</ul>';
+                suggestionsDiv.innerHTML = '<p class="fw-semibold">Grammar Suggestions:</p><ul class="list-unstyled ps-3">' +
+                    suggestions.map(s => `<li>• ${s}</li>`).join('') + '</ul>';
             }
-            suggestionsDiv.classList.remove('hidden');
+            suggestionsDiv.classList.remove('d-none');
         }
 
         async function loadProgrammes() {
@@ -519,17 +530,17 @@
                     searchSelect.innerHTML += `<option value="${p.name}">${p.name}</option>`;
                 });
                 metadataSelect.innerHTML += `<option value="Other">Other</option>`;
-                noProgrammesMessage.classList.toggle('hidden', programmes.length > 0);
+                noProgrammesMessage.classList.toggle('d-none', programmes.length > 0);
 
                 const list = document.getElementById('programmeList');
                 list.innerHTML = '';
                 programmes.forEach(p => {
                     const div = document.createElement('div');
-                    div.className = 'flex gap-3 items-center';
+                    div.className = 'd-flex gap-2 align-items-center';
                     div.innerHTML = `
-                        <input type="text" value="${p.name}" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" readonly>
-                        <button onclick="editProgramme('${p.id}', this)" class="bg-yellow-500 text-white p-2 rounded-lg hover:bg-yellow-600 transition tooltip" data-tooltip="Edit programme">Edit</button>
-                        <button onclick="deleteProgramme('${p.id}')" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Delete programme">Delete</button>
+                        <input type="text" value="${p.name}" class="form-control" readonly>
+                        <button onclick="editProgramme('${p.id}', this)" class="btn btn-warning">Edit</button>
+                        <button onclick="deleteProgramme('${p.id}')" class="btn btn-danger">Delete</button>
                     `;
                     list.appendChild(div);
                 });
@@ -539,810 +550,4 @@
             }
         }
 
-        async function loadDisks() {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            try {
-                const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
-                console.log('Disks fetched:', snapshot.size);
-                const files = snapshot.docs.map(doc => doc.data());
-                const diskIds = [...new Set(files.map(file => file.diskId))];
-                const diskList = document.getElementById('diskList');
-                diskList.innerHTML = '';
-                diskIds.forEach(diskId => {
-                    const div = document.createElement('div');
-                    div.className = 'flex gap-3 items-center';
-                    div.innerHTML = `
-                        <input type="text" value="${diskId}" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" readonly>
-                        <input type="file" id="rescanFolder_${diskId.replace(/[^a-zA-Z0-9]/g, '_')}" webkitdirectory directory multiple class="p-2 border rounded-lg">
-                        <button onclick="rescanDisk('${diskId.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Rescan this disk for new files">Rescan</button>
-                    `;
-                    diskList.appendChild(div);
-                });
-            } catch (error) {
-                console.error('Failed to load disks:', error);
-                alert('Error loading disks. Please check Firebase configuration and try again.');
-            }
-        }
-
-        async function addProgramme() {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.setDoc || !window.firebase.doc || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            const name = document.getElementById('newProgramme').value.trim();
-            if (!name) {
-                alert('Please enter a programme name.');
-                return;
-            }
-            try {
-                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'programmes'), window.firebase.where('name', '==', name.toLowerCase())));
-                if (!snapshot.empty) {
-                    alert(`Programme "${name}" already exists.`);
-                    return;
-                }
-                const id = window.firebase.doc(window.firebase.collection(window.firebase.firestore, 'programmes')).id;
-                await window.firebase.setDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id), { id, name });
-                document.getElementById('newProgramme').value = '';
-                alert(`Programme "${name}" added!`);
-            } catch (error) {
-                console.error('Failed to add programme:', error);
-                alert('Error adding programme. Please try again.');
-            }
-        }
-
-        async function editProgramme(id, button) {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.updateDoc || !window.firebase.doc || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            const input = button.previousElementSibling;
-            if (button.textContent === 'Edit') {
-                input.removeAttribute('readonly');
-                button.textContent = 'Save';
-                button.className = 'bg-teal-500 text-white p-2 rounded-lg hover:bg-teal-600 transition tooltip';
-                button.setAttribute('data-tooltip', 'Save programme name');
-            } else {
-                const newName = input.value.trim();
-                if (!newName) {
-                    alert('Please enter a programme name.');
-                    return;
-                }
-                try {
-                    const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'programmes'), window.firebase.where('name', '==', newName.toLowerCase())));
-                    if (!snapshot.empty && snapshot.docs[0].id !== id) {
-                        alert(`Programme "${newName}" already exists.`);
-                        return;
-                    }
-                    await window.firebase.updateDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id), { name: newName });
-                    input.setAttribute('readonly', true);
-                    button.textContent = 'Edit';
-                    button.className = 'bg-yellow-500 text-white p-2 rounded-lg hover:bg-yellow-600 transition tooltip';
-                    button.setAttribute('data-tooltip', 'Edit programme');
-                    alert(`Programme updated to "${newName}"!`);
-                } catch (error) {
-                    console.error('Failed to edit programme:', error);
-                    alert('Error editing programme. Please try again.');
-                }
-            }
-        }
-
-        async function deleteProgramme(id) {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.deleteDoc || !window.firebase.doc || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            if (!confirm('Are you sure you want to delete this programme?')) return;
-            try {
-                await window.firebase.deleteDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id));
-                alert('Programme deleted!');
-            } catch (error) {
-                console.error('Failed to delete programme:', error);
-                alert('Error deleting programme. Please try again.');
-            }
-        }
-
-        function toggleOtherProgrammeInput(select) {
-            const otherInput = document.getElementById('otherProgramme');
-            otherInput.classList.toggle('hidden', select.value !== 'Other');
-            if (select.value === 'Other') {
-                otherInput.focus();
-            }
-        }
-
-        function isExcluded(filePath) {
-            const fileName = filePath.split('/').pop();
-            if (EXCLUDE_PREFIXES.some(prefix => fileName.startsWith(prefix))) return true;
-            if (!VIDEO_EXTENSIONS.some(ext => fileName.toLowerCase().endsWith(ext))) return true;
-            return EXCLUDE_DIRS.some(dir => filePath.includes(dir));
-        }
-
-        async function scanDisk(diskId = null) {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.setDoc || !window.firebase.doc || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            const inputDiskId = diskId || document.getElementById('diskId').value.trim();
-            const diskFolder = diskId ? document.getElementById(`rescanFolder_${diskId.replace(/[^a-zA-Z0-9]/g, '_')}`) : document.getElementById('diskFolder');
-            if (!inputDiskId) {
-                alert('Please enter a Disk ID.');
-                return;
-            }
-            if (!diskFolder.files.length) {
-                alert('Please select a folder.');
-                return;
-            }
-
-            const progressBar = document.getElementById('scanProgress');
-            const progressFill = document.getElementById('progressFill');
-            progressBar.classList.add('active');
-            progressFill.style.width = '0%';
-
-            const scannedTable = document.getElementById('scannedTable');
-            scannedTable.innerHTML = '';
-            currentFiles = Array.from(diskFolder.files);
-
-            try {
-                const newFiles = [];
-                const existingFiles = new Set();
-                const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
-                const fileDocs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                fileDocs.forEach(file => existingFiles.add(normalizePath(file.filePath)));
-                console.log('Existing files in Firestore:', Array.from(existingFiles));
-
-                const nonArchivedFiles = [];
-                currentFiles.forEach((file, index) => {
-                    const relativePath = normalizePath(file.webkitRelativePath);
-                    if (!isExcluded(relativePath)) {
-                        if (!existingFiles.has(relativePath)) {
-                            window.firebase.setDoc(window.firebase.doc(window.firebase.firestore, 'files', sanitizeId(relativePath)), {
-                                filePath: relativePath,
-                                diskId: inputDiskId,
-                                metadata: {}
-                            })
-                                .then(() => console.log('Added new file:', relativePath))
-                                .catch(error => console.error('Error adding file:', relativePath, error));
-                            newFiles.push(relativePath);
-                        }
-                        nonArchivedFiles.push({ filePath: relativePath, file });
-                        progressFill.style.width = `${((index + 1) / currentFiles.length) * 100}%`;
-                    } else {
-                        console.log('Excluded file during scan:', relativePath);
-                    }
-                });
-
-                const snapshot2 = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('metadata', '==', {})));
-                const untaggedFiles = snapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                console.log('Untagged files in Firestore:', untaggedFiles.map(f => ({ filePath: f.filePath, metadata: f.metadata })));
-
-                const displayFiles = nonArchivedFiles
-                    .filter(f => untaggedFiles.some(doc => normalizePath(doc.filePath) === f.filePath))
-                    .sort((a, b) => a.filePath.localeCompare(b.filePath, undefined, { sensitivity: 'base' }));
-
-                console.log('Files to display in Scanned Files tab:', displayFiles.map(f => f.filePath));
-
-                const problemFile = "chiriyude vazhi/chiriyude vazhi-ep-01-917-imx-06.mov";
-                const normalizedProblemFile = normalizePath(problemFile);
-                const problemFileDoc = fileDocs.find(doc => normalizePath(doc.filePath) === normalizedProblemFile);
-                if (problemFileDoc) {
-                    console.warn(`Problematic file "${problemFile}" found in Firestore:`, {
-                        filePath: problemFileDoc.filePath,
-                        metadata: problemFileDoc.metadata,
-                        isTagged: Object.keys(problemFileDoc.metadata).length > 0
-                    });
-                    if (Object.keys(problemFileDoc.metadata).length > 0) {
-                        console.warn(`File "${problemFile}" is tagged but appearing in Scanned Files. Metadata:`, problemFileDoc.metadata);
-                    }
-                } else {
-                    console.warn(`File "${problemFile}" not found in Firestore.`);
-                }
-
-                displayFiles.forEach(({ filePath, file }) => {
-                    const row = document.createElement('tr');
-                    row.dataset.filePath = filePath;
-                    row.innerHTML = `
-                        <td class="file-path-column p-3 border">${filePath}</td>
-                        <td class="actions-column p-3 border">
-                            <button onclick="editMetadata('${filePath.replace(/'/g, "\\'")}')" 
-                                    class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata and play">
-                                Edit Metadata
-                            </button>
-                        </td>
-                    `;
-                    scannedTable.appendChild(row);
-                });
-
-                progressBar.classList.remove('active');
-                if (newFiles.length > 0) {
-                    alert(`New files added from folder and subfolders: ${newFiles.join(', ')}\nEdit metadata in the 'Scanned Files' section to archive them.`);
-                } else {
-                    alert('No new files found during scan.');
-                }
-                alert('Scan completed!');
-                await loadFiles();
-                await loadDisks();
-                showTab('scannedTab');
-            } catch (error) {
-                console.error('Failed to scan disk:', error);
-                progressBar.classList.remove('active');
-                alert('Error scanning disk. Please check Firebase configuration and try again.');
-            }
-        }
-
-        function rescanDisk(diskId) {
-            scanDisk(diskId);
-        }
-
-        async function editMetadata(filePath) {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.doc || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            const normalizedPath = normalizePath(filePath);
-            document.getElementById('metadataFilePath').value = normalizedPath;
-            const programName = document.getElementById('programName');
-            const otherProgramme = document.getElementById('otherProgramme');
-            const episodeNumber = document.getElementById('episodeNumber');
-            const episodeDetails = document.getElementById('episodeDetails');
-            const telecastDate = document.getElementById('telecastDate');
-            const customFields = document.getElementById('customFields');
-            const videoPlayerContainer = document.getElementById('videoPlayerContainer');
-            const videoPlayer = document.getElementById('videoPlayer');
-            const grammarSuggestions = document.getElementById('grammarSuggestions');
-
-            if (videoPlayer.src) {
-                URL.revokeObjectURL(videoPlayer.src);
-                videoPlayer.src = '';
-            }
-            grammarSuggestions.classList.add('hidden');
-            grammarSuggestions.innerHTML = '';
-
-            customFields.innerHTML = `
-                <div class="flex flex-col sm:flex-row gap-3">
-                    <input type="text" placeholder="Custom Field Name" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-key>
-                    <input type="text" placeholder="Value" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-value>
-                    <button onclick="removeCustomField(this)" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Remove this field">Remove</button>
-                </div>
-            `;
-
-            const file = currentFiles.find(f => normalizePath(f.webkitRelativePath) === normalizedPath);
-            if (file) {
-                videoPlayer.src = URL.createObjectURL(file);
-                videoPlayerContainer.classList.remove('hidden');
-            } else {
-                videoPlayerContainer.classList.add('hidden');
-                alert('Video file not found. Please reselect the folder containing this file.');
-            }
-
-            try {
-                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', filePath)));
-                if (snapshot.empty) {
-                    alert('File not found in Firestore.');
-                    return;
-                }
-                const file = snapshot.docs[0].data();
-                if (file && Object.keys(file.metadata).length > 0) {
-                    const progName = file.metadata['Name of Programme'] || '';
-                    programName.value = progName;
-                    if (programName.options.namedItem(progName)) {
-                        otherProgramme.value = '';
-                        otherProgramme.classList.add('hidden');
-                    } else {
-                        programName.value = 'Other';
-                        otherProgramme.value = progName;
-                        otherProgramme.classList.remove('hidden');
-                    }
-                    episodeNumber.value = file.metadata['Episode Number'] || '';
-                    episodeDetails.value = file.metadata['Episode Details'] || '';
-                    telecastDate.value = file.metadata['Telecast Date'] || '';
-                    customFields.innerHTML = '';
-                    Object.entries(file.metadata).forEach(([key, value]) => {
-                        if (!['Name of Programme', 'Episode Number', 'Episode Details', 'Telecast Date'].includes(key)) {
-                            const div = document.createElement('div');
-                            div.className = 'flex flex-col sm:flex-row gap-3';
-                            div.innerHTML = `
-                                <input type="text" value="${key}" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-key>
-                                <input type="text" value="${value}" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-value>
-                                <button onclick="removeCustomField(this)" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Remove this field">Remove</button>
-                            `;
-                            customFields.appendChild(div);
-                        }
-                    });
-                } else {
-                    programName.value = '';
-                    otherProgramme.value = '';
-                    otherProgramme.classList.add('hidden');
-                    episodeNumber.value = '';
-                    episodeDetails.value = '';
-                    telecastDate.value = '';
-                }
-                showTab('metadataTab');
-                document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
-                programName.focus();
-            } catch (error) {
-                console.error('Failed to load metadata:', error);
-                alert('Error loading metadata. Please check Firebase configuration and try again.');
-            }
-        }
-
-        function addCustomField() {
-            const customFields = document.getElementById('customFields');
-            const div = document.createElement('div');
-            div.className = 'flex flex-col sm:flex-row gap-3';
-            div.innerHTML = `
-                <input type="text" placeholder="Custom Field Name" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-key>
-                <input type="text" placeholder="Value" class="p-2 border rounded-lg flex-1 focus:outline-none focus:ring-2 focus:ring-teal-300" data-value>
-                <button onclick="removeCustomField(this)" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition tooltip" data-tooltip="Remove this field">Remove</button>
-            `;
-            customFields.appendChild(div);
-        }
-
-        function removeCustomField(button) {
-            button.parentElement.remove();
-        }
-
-        async function saveMetadata() {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.updateDoc || !window.firebase.doc || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            const filePath = document.getElementById('metadataFilePath').value.trim();
-            if (!filePath) {
-                alert('Please select a file to edit metadata.');
-                return;
-            }
-
-            try {
-                const normalizedPath = normalizePath(filePath);
-                const snapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'files'), window.firebase.where('filePath', '==', filePath)));
-                if (snapshot.empty) {
-                    alert('File not found!');
-                    return;
-                }
-                const docRef = snapshot.docs[0].ref;
-                const metadata = {};
-                const programName = document.getElementById('programName').value;
-                const otherProgramme = document.getElementById('otherProgramme').value.trim();
-                const finalProgramName = programName === 'Other' ? otherProgramme : programName;
-                if (finalProgramName) {
-                    metadata['Name of Programme'] = finalProgramName;
-                    if (programName === 'Other' && otherProgramme) {
-                        const progSnapshot = await window.firebase.getDocs(window.firebase.query(window.firebase.collection(window.firebase.firestore, 'programmes'), window.firebase.where('name', '==', otherProgramme.toLowerCase())));
-                        if (progSnapshot.empty) {
-                            const id = window.firebase.doc(window.firebase.collection(window.firebase.firestore, 'programmes')).id;
-                            await window.firebase.setDoc(window.firebase.doc(window.firebase.firestore, 'programmes', id), { id, name: otherProgramme });
-                        }
-                    }
-                }
-                const episodeNumber = document.getElementById('episodeNumber').value.trim();
-                if (episodeNumber) metadata['Episode Number'] = episodeNumber;
-                const episodeDetails = document.getElementById('episodeDetails').value.trim();
-                if (episodeDetails) metadata['Episode Details'] = toSentenceCase(episodeDetails);
-                const telecastDate = document.getElementById('telecastDate').value.trim();
-                if (telecastDate) metadata['Telecast Date'] = telecastDate;
-
-                document.querySelectorAll('#customFields div').forEach(div => {
-                    const key = div.querySelector('[data-key]').value.trim();
-                    const value = div.querySelector('[data-value]').value.trim();
-                    if (key && value) metadata[key] = value;
-                });
-
-                await window.firebase.updateDoc(docRef, { metadata });
-                const videoPlayer = document.getElementById('videoPlayer');
-                if (videoPlayer.src) {
-                    URL.revokeObjectURL(videoPlayer.src);
-                    videoPlayer.src = '';
-                }
-                document.getElementById('grammarSuggestions').classList.add('hidden');
-                alert(`Metadata saved for "${filePath.split('/').pop()}". Updated in 'Archived Files'.`);
-                const scannedTable = document.getElementById('scannedTable');
-                const rows = Array.from(scannedTable.querySelectorAll('tr'));
-                const currentRow = rows.find(row => normalizePath(row.dataset.filePath) === normalizedPath);
-                if (currentRow) currentRow.remove();
-                if (rows.length > 1) {
-                    const nextRow = rows.find(row => normalizePath(row.dataset.filePath) !== normalizedPath);
-                    if (nextRow) {
-                        const nextFilePath = nextRow.dataset.filePath;
-                        await editMetadata(nextFilePath);
-                    }
-                } else {
-                    alert('All scanned files have been archived!');
-                    showTab('scannedTab');
-                }
-                document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
-            } catch (error) {
-                console.error('Failed to save metadata:', error);
-                alert('Error saving metadata. Please check Firebase configuration and try again.');
-            }
-        }
-
-        async function loadFiles() {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            try {
-                const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
-                console.log('Files fetched:', snapshot.size, snapshot.docs.map(doc => ({ filePath: doc.data().filePath, diskId: doc.data().diskId, metadata: doc.data().metadata })));
-                const files = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                const tableBody = document.getElementById('fileTable');
-                tableBody.innerHTML = '';
-
-                const filesWithMetadata = files
-                    .filter(file => Object.keys(file.metadata).length > 0)
-                    .sort((a, b) => {
-                        const progA = a.metadata['Name of Programme'] || '';
-                        const progB = b.metadata['Name of Programme'] || '';
-                        if (progA !== progB) {
-                            return progA.localeCompare(progB, undefined, { sensitivity: 'base' });
-                        }
-                        const epA = parseInt(a.metadata['Episode Number'] || '0', 10);
-                        const epB = parseInt(b.metadata['Episode Number'] || '0', 10);
-                        return epA - epB;
-                    });
-
-                const currentFilePaths = currentFiles.map(f => normalizePath(f.webkitRelativePath));
-                console.log('Current scanned file paths:', currentFilePaths);
-
-                filesWithMetadata.forEach(file => {
-                    const normalizedPath = normalizePath(file.filePath);
-                    const metadataStr = Object.entries(file.metadata)
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join('; ');
-                    const isAccessible = currentFilePaths.includes(normalizedPath);
-                    if (!isAccessible) {
-                        console.warn(`File marked offline: ${file.filePath} (normalized: ${normalizedPath}) not found in current files.`);
-                    }
-                    const row = document.createElement('tr');
-                    row.className = isAccessible ? 'bg-green-100' : 'bg-red-100';
-                    row.setAttribute('data-tooltip', isAccessible ? 'File accessible' : 'File not found, reselect folder or update path');
-                    row.classList.add('tooltip');
-                    row.innerHTML = `
-                        <td class="file-path-column p-3 border">${file.filePath}</td>
-                        <td class="disk-id-column p-3 border">${file.diskId}</td>
-                        <td class="metadata-column p-3 border">${metadataStr}</td>
-                        <td class="actions-column p-3 border">
-                            <button onclick="editMetadata('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata">Edit</button>
-                            <button onclick="playVideoInSearch('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Play video">Play</button>
-                            <button onclick="copyFile('${file.filePath.replace(/'/g, "\\'")}')" class="bg-gray-500 text-white p-1 rounded-lg hover:bg-gray-600 transition tooltip" data-tooltip="Copy file to destination">Copy</button>
-                            ${!isAccessible ? `<button onclick="updateFilePath('${file.filePath.replace(/'/g, "\\'")}', '${file.diskId.replace(/'/g, "\\'")}')" class="bg-yellow-500 text-white p-1 rounded-lg hover:bg-yellow-600 transition tooltip" data-tooltip="Update file path">Update Path</button>` : ''}
-                        </td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-
-                const problemFile = "chiriyude vazhi/chiriyude vazhi-ep-01-917-imx-06.mov";
-                const normalizedProblemFile = normalizePath(problemFile);
-                const problemFileData = files.find(f => normalizePath(f.filePath) === normalizedProblemFile);
-                if (problemFileData) {
-                    console.log(`Status of "${problemFile}":`, {
-                        filePath: problemFileData.filePath,
-                        diskId: problemFileData.diskId,
-                        metadata: problemFileData.metadata,
-                        isTagged: Object.keys(problemFileData.metadata).length > 0,
-                        isAccessible: currentFilePaths.includes(normalizedProblemFile)
-                    });
-                } else {
-                    console.log(`File "${problemFile}" not found in Firestore.`);
-                }
-            } catch (error) {
-                console.error('Failed to load files:', error);
-                alert('Error loading files. Please check Firebase configuration and try again.');
-            }
-        }
-
-        function playVideoInSearch(filePath) {
-            const normalizedPath = normalizePath(filePath);
-            const file = currentFiles.find(f => normalizePath(f.webkitRelativePath) === normalizedPath);
-            const videoPlayer = document.getElementById('videoPlayer');
-            if (videoPlayer.src) {
-                URL.revokeObjectURL(videoPlayer.src);
-                videoPlayer.src = '';
-            }
-            if (file) {
-                videoPlayer.src = URL.createObjectURL(file);
-                showTab('metadataTab');
-                document.getElementById('metadataTab').scrollIntoView({ behavior: 'smooth' });
-            } else {
-                console.warn(`Cannot play video: ${filePath} (normalized: ${normalizedPath}) not found in current files.`);
-                alert('Video file not found. Please reselect the folder containing this file or update the file path.');
-            }
-        }
-
-        function copyFile(filePath) {
-            const normalizedPath = normalizePath(filePath);
-            const file = currentFiles.find(f => normalizePath(f.webkitRelativePath) === normalizedPath);
-            if (!file) {
-                console.warn(`Cannot copy file: ${filePath} (normalized: ${normalizedPath}) not found in current files.`);
-                alert('Video file not found. Please reselect the folder containing this file or update the file path.');
-                return;
-            }
-
-            const copyDestination = document.getElementById('copyDestination');
-            copyDestination.value = '';
-            copyDestination.onchange = function() {
-                const destinationPath = copyDestination.files.length ? copyDestination.files[0].webkitRelativePath.split('/')[0] : '';
-                if (!destinationPath) {
-                    alert('Please select a destination folder.');
-                    return;
-                }
-                const fileName = normalizedPath.split('/').pop();
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(file);
-                link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(link.href);
-                alert(`File "${fileName}" is ready to download. Please save it to the selected destination folder: ${destinationPath}`);
-                copyDestination.value = '';
-            };
-            copyDestination.click();
-        }
-
-        async function searchFiles() {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.query || !window.firebase.where || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            const diskId = document.getElementById('searchDiskId').value.trim();
-            const programName = document.getElementById('searchProgramName').value.trim();
-            const episodeNumber = document.getElementById('searchEpisodeNumber').value.trim();
-            const telecastDate = document.getElementById('searchTelecastDate').value.trim();
-            const searchMetadata = document.getElementById('searchMetadata').value.trim().toLowerCase();
-            const searchLogic = document.getElementById('searchLogic').value;
-
-            try {
-                let q = window.firebase.collection(window.firebase.firestore, 'files');
-                const conditions = [];
-                if (diskId) conditions.push(window.firebase.where('diskId', '==', diskId));
-                if (programName) conditions.push(window.firebase.where('metadata.Name of Programme', '==', programName));
-                if (episodeNumber) conditions.push(window.firebase.where('metadata.Episode Number', '==', episodeNumber));
-                if (telecastDate) conditions.push(window.firebase.where('metadata.Telecast Date', '==', telecastDate));
-                if (conditions.length > 0) q = window.firebase.query(q, ...conditions);
-
-                const snapshot = await window.firebase.getDocs(q);
-                const files = snapshot.docs.map(doc => doc.data()).filter(file => {
-                    if (!Object.keys(file.metadata).length) return false;
-                    if (searchMetadata) {
-                        return Object.entries(file.metadata).some(([key, value]) =>
-                            key.toLowerCase().includes(searchMetadata) ||
-                            value.toLowerCase().includes(searchMetadata)
-                        );
-                    }
-                    return true;
-                }).filter(file => {
-                    const diskMatch = !diskId || file.diskId.toLowerCase() === diskId.toLowerCase();
-                    const programMatch = !programName || (file.metadata['Name of Programme'] && file.metadata['Name of Programme'].toLowerCase() === programName.toLowerCase());
-                    const episodeMatch = !episodeNumber || (file.metadata['Episode Number'] && file.metadata['Episode Number'] === episodeNumber);
-                    const dateMatch = !telecastDate || (file.metadata['Telecast Date'] && file.metadata['Telecast Date'] === telecastDate);
-                    if (searchLogic === 'AND') {
-                        return (diskId ? diskMatch : true) &&
-                               (programName ? programMatch : true) &&
-                               (episodeNumber ? episodeMatch : true) &&
-                               (telecastDate ? dateMatch : true);
-                    } else {
-                        return (diskId && diskMatch) ||
-                               (programName && programMatch) ||
-                               (episodeNumber && episodeMatch) ||
-                               (telecastDate && dateMatch);
-                    }
-                }).sort((a, b) => {
-                    const progA = a.metadata['Name of Programme'] || '';
-                    const progB = b.metadata['Name of Programme'] || '';
-                    if (progA !== progB) {
-                        return progA.localeCompare(progB, undefined, { sensitivity: 'base' });
-                    }
-                    const epA = parseInt(a.metadata['Episode Number'] || '0', 10);
-                    const epB = parseInt(b.metadata['Episode Number'] || '0', 10);
-                    return epA - epB;
-                });
-
-                const tableBody = document.getElementById('fileTable');
-                tableBody.innerHTML = '';
-
-                let alertMessage = files.length ? `Found ${files.length} file(s): ` : 'No files match your search.';
-                if (files.length) {
-                    const matches = files.map(file => `Disk ID: ${file.diskId}, Path: ${file.filePath}`).join('; ');
-                    alertMessage += matches;
-                }
-                alert(alertMessage);
-
-                const currentFilePaths = currentFiles.map(f => normalizePath(f.webkitRelativePath));
-                files.forEach(file => {
-                    const normalizedPath = normalizePath(file.filePath);
-                    const metadataStr = Object.entries(file.metadata)
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join('; ');
-                    const isAccessible = currentFilePaths.includes(normalizedPath);
-                    if (!isAccessible) {
-                        console.warn(`Search result marked offline: ${file.filePath} (normalized: ${normalizedPath}) not found in current files.`);
-                    }
-                    const row = document.createElement('tr');
-                    row.className = isAccessible ? 'bg-green-100' : 'bg-red-100';
-                    row.setAttribute('data-tooltip', isAccessible ? 'File accessible' : 'File not found, reselect folder or update path');
-                    row.classList.add('tooltip');
-                    row.innerHTML = `
-                        <td class="file-path-column p-3 border">${file.filePath}</td>
-                        <td class="disk-id-column p-3 border">${file.diskId}</td>
-                        <td class="metadata-column p-3 border">${metadataStr}</td>
-                        <td class="actions-column p-3 border">
-                            <button onclick="editMetadata('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Edit metadata">Edit</button>
-                            <button onclick="playVideoInSearch('${file.filePath.replace(/'/g, "\\'")}')" class="bg-teal-500 text-white p-1 rounded-lg hover:bg-teal-600 transition tooltip" data-tooltip="Play video">Play</button>
-                            <button onclick="copyFile('${file.filePath.replace(/'/g, "\\'")}')" class="bg-gray-500 text-white p-1 rounded-lg hover:bg-gray-600 transition tooltip" data-tooltip="Copy file to destination">Copy</button>
-                            ${!isAccessible ? `<button onclick="updateFilePath('${file.filePath.replace(/'/g, "\\'")}', '${file.diskId.replace(/'/g, "\\'")}')" class="bg-yellow-500 text-white p-1 rounded-lg hover:bg-yellow-600 transition tooltip" data-tooltip="Update file path">Update Path</button>` : ''}
-                        </td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-            } catch (error) {
-                console.error('Failed to search files:', error);
-                alert('Error searching files. Please check Firebase configuration and try again.');
-            }
-        }
-
-        async function exportReport() {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            try {
-                const snapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
-                const files = snapshot.docs.map(doc => doc.data());
-                const filesWithMetadata = files.filter(file => Object.keys(file.metadata).length > 0);
-
-                const metadataKeys = new Set(['Name of Programme', 'Episode Number', 'Episode Details', 'Telecast Date']);
-                filesWithMetadata.forEach(file => {
-                    Object.keys(file.metadata).forEach(key => metadataKeys.add(key));
-                });
-                const headers = ['Relative File Path', 'Disk ID', ...metadataKeys];
-
-                let csvContent = 'data:text/csv;charset=utf-8,' + headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + '\n';
-                filesWithMetadata.forEach(file => {
-                    const normalizedPath = normalizePath(file.filePath);
-                    const row = [
-                        `"${file.filePath.replace(/"/g, '""')}"`,
-                        `"${file.diskId.replace(/"/g, '""')}"`,
-                        ...headers.slice(2).map(key => {
-                            const value = file.metadata[key] || '';
-                            return `"${value.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
-                        })
-                    ];
-                    csvContent += row.join(',') + '\n';
-                });
-
-                const link = document.createElement('a');
-                link.setAttribute('href', encodeURI(csvContent));
-                link.setAttribute('download', 'video_metadata_report.csv');
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                alert('Report exported as CSV!');
-            } catch (error) {
-                console.error('Failed to export report:', error);
-                alert('Error exporting report. Please check Firebase configuration and try again.');
-            }
-        }
-
-        async function backupData() {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.collection) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            try {
-                const backupData = { files: [], programmes: [] };
-                const [fileSnapshot, progSnapshot] = await Promise.all([
-                    window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files')),
-                    window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes'))
-                ]);
-                backupData.files = fileSnapshot.docs.map(doc => doc.data());
-                backupData.programmes = progSnapshot.docs.map(doc => doc.data());
-
-                const jsonContent = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
-                const link = document.createElement('a');
-                link.setAttribute('href', jsonContent);
-                link.setAttribute('download', 'video_manager_backup.json');
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(link.href);
-                alert('Data backed up as video_manager_backup.json!');
-            } catch (error) {
-                console.error('Failed to backup data:', error);
-                alert('Error backing up data. Please check Firebase configuration and try again.');
-            }
-        }
-
-        async function restoreData() {
-            if (!window.firebase || !window.firebase.firestore || !window.firebase.getDocs || !window.firebase.setDoc || !window.firebase.doc || !window.firebase.collection || !window.firebase.writeBatch) {
-                console.error('Firestore not initialized.');
-                alert('Firestore is not initialized. Please check Firebase configuration and reload the page.');
-                return;
-            }
-            const restoreInput = document.getElementById('restoreInput');
-            if (!restoreInput.files.length) {
-                alert('Please select a JSON backup file.');
-                return;
-            }
-            if (!confirm('Restoring data will overwrite existing data. Continue?')) return;
-
-            const file = restoreInput.files[0];
-            const reader = new FileReader();
-            reader.onload = async function(event) {
-                try {
-                    const data = JSON.parse(event.target.result);
-                    const batch = window.firebase.writeBatch(window.firebase.firestore);
-                    const fileSnapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'files'));
-                    fileSnapshot.forEach(doc => batch.delete(doc.ref));
-                    data.files.forEach(file => {
-                        const normalizedPath = normalizePath(file.filePath);
-                        batch.set(window.firebase.doc(window.firebase.firestore, 'files', sanitizeId(normalizedPath)), {
-                            ...file,
-                            filePath: normalizedPath
-                        });
-                    });
-                    const progSnapshot = await window.firebase.getDocs(window.firebase.collection(window.firebase.firestore, 'programmes'));
-                    progSnapshot.forEach(doc => batch.delete(doc.ref));
-                    data.programmes.forEach(prog => {
-                        batch.set(window.firebase.doc(window.firebase.firestore, 'programmes', prog.id), prog);
-                    });
-                    await batch.commit();
-                    await loadProgrammes();
-                    await loadFiles();
-                    await loadDisks();
-                    restoreInput.value = '';
-                    alert('Data restored successfully!');
-                } catch (error) {
-                    console.error('Failed to restore data:', error);
-                    alert('Error restoring data. Please check the JSON file or Firebase configuration and try again.');
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-            return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-                try {
-                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                    var firstSheetName = workbook.SheetNames[0];
-                    var worksheet = workbook.Sheets[firstSheetName];
-                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                    var filteredData = jsonData.filter(row => row.some(filledCell));
-                    var headerRowIndex = filteredData.findIndex((row, index) =>
-                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                    );
-                    if (headerRowIndex === -1 || headerRowIndex > 25) {
-                        headerRowIndex = 0;
-                    }
-                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
-                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                    return csv;
-                } catch (e) {
-                    console.error('XLSX Error:', e);
-                    return "";
-                }
-            }
-            return gk_fileData[filename] || "";
-        }
-    </script>
-</body>
-</html>
+        async function loadDisks
